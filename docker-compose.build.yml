@@ -1,7 +1,9 @@
 version: "3.8"
 services:
   removeBackground:
-    image: background-remover:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: removeBackground
     hostname: removeBackground
     ports:
