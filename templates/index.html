@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Image Processor v1.2.0</title>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+<meta http-equiv="Pragma" content="no-cache" />
+<meta http-equiv="Expires" content="0" />
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Syne:wght@700;800&display=swap');
+  :root {
+    --bg:#1a1a1a; --surface:#2a2a2a; --border:#444;
+    --blue:#0066cc; --green:#00ff00; --green-dim:#00aa00;
+    --red:#cc0000; --yellow:#ffff00; --orange:#ffaa00;
+    --text:#cccccc; --muted:#666666; --white:#ffffff;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospace;min-height:100vh;display:flex;flex-direction:column;align-items:center}
+  header{width:100%;background:var(--blue);padding:14px 20px;display:flex;align-items:center;justify-content:space-between}
+  header h1{font-family:'Syne',sans-serif;font-size:1.5rem;font-weight:800;color:var(--white);letter-spacing:1px}
+  #counter-box{background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.2);border-radius:6px;padding:6px 14px;text-align:center}
+  #counter-box .cnt-num{font-family:'Syne',sans-serif;font-size:1.4rem;font-weight:800;color:var(--green);line-height:1}
+  #counter-box .cnt-lbl{font-size:.6rem;color:rgba(255,255,255,.6);letter-spacing:1px;text-transform:uppercase}
+  main{width:100%;max-width:1000px;padding:20px 20px 40px;display:flex;flex-direction:column;gap:14px}
+
+  /* plugin selector */
+  .section-label{font-size:.85rem;font-weight:700;color:var(--green)}
+  #plugin-list{display:flex;flex-wrap:wrap;gap:10px}
+  .plugin-card{
+    background:var(--surface);border:2px solid var(--border);border-radius:6px;
+    padding:10px 14px;cursor:pointer;transition:border-color .15s,background .15s;
+    display:flex;align-items:center;gap:10px;min-width:200px;flex:1;
+  }
+  .plugin-card:hover{border-color:#666;background:#333}
+  .plugin-card.active{border-color:var(--blue);background:#1a2a3a}
+  .plugin-card .pi{font-size:1.6rem;flex-shrink:0}
+  .plugin-card .pt{display:flex;flex-direction:column;gap:2px}
+  .plugin-card .pname{font-family:'Syne',sans-serif;font-size:.85rem;font-weight:700;color:var(--white)}
+  .plugin-card .pdesc{font-size:.65rem;color:var(--muted);line-height:1.4}
+
+  /* plugin options */
+  #plugin-options{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:12px 14px;display:flex;flex-wrap:wrap;gap:14px}
+  .ctrl-group{display:flex;align-items:center;gap:8px}
+  .ctrl-group label{font-size:.8rem;font-weight:700;color:var(--text)}
+  select{background:#333;color:var(--white);border:1px solid var(--border);border-radius:3px;padding:4px 8px;font-family:'JetBrains Mono',monospace;font-size:.8rem;cursor:pointer;outline:none}
+  select:focus{border-color:var(--blue)}
+
+  #drop-zone{border:2px solid var(--border);border-radius:4px;background:var(--surface);padding:36px 20px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s;user-select:none}
+  #drop-zone:hover,#drop-zone.drag-over{border-color:var(--green);background:#333}
+  #drop-zone.drag-over{border-style:dashed}
+  #drop-zone .dz-icon{font-size:2.2rem;display:block;margin-bottom:8px}
+  #drop-zone .dz-label{font-family:'Syne',sans-serif;font-size:1rem;font-weight:700;color:var(--muted);line-height:1.6;transition:color .15s}
+  #drop-zone .dz-hint{font-size:.72rem;font-weight:400;color:var(--muted)}
+  #drop-zone:hover .dz-label,#drop-zone.drag-over .dz-label{color:var(--green)}
+
+  .queue-label{font-size:.85rem;font-weight:700;color:var(--green)}
+  #file-list{background:var(--surface);border:1px solid var(--border);border-radius:4px;min-height:60px;max-height:160px;overflow-y:auto}
+  #file-list::-webkit-scrollbar{width:6px}
+  #file-list::-webkit-scrollbar-track{background:var(--surface)}
+  #file-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+  .file-row{display:flex;align-items:center;gap:8px;padding:5px 10px;font-size:.78rem;border-bottom:1px solid #333;animation:fadeIn .2s ease}
+  .file-row:last-child{border-bottom:none}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1}}
+  .file-row .icon{font-size:1rem;flex-shrink:0}
+  .file-row .name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--green)}
+  .file-row .status{flex-shrink:0;font-size:.72rem;color:var(--muted)}
+  .file-row.done .name{color:#aaa}
+  .file-row.error .name{color:var(--red)}
+  .progress-bar-bg{width:100%;height:22px;background:var(--surface);border:1px solid var(--border);border-radius:3px;overflow:hidden;position:relative}
+  .progress-bar-fill{height:100%;background:var(--green-dim);width:0%;transition:width .3s ease}
+  .progress-bar-text{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:700;color:var(--white)}
+  #status{font-size:.82rem;color:var(--yellow);min-height:1.2em}
+  .btn-row{display:flex;gap:10px}
+  button{padding:12px 20px;font-family:'Syne',sans-serif;font-weight:700;font-size:.95rem;border:none;border-radius:4px;cursor:pointer;letter-spacing:.5px;transition:filter .1s,transform .1s}
+  button:active{transform:scale(.98);filter:brightness(.85)}
+  #btn-clear{background:var(--red);color:var(--white)}
+
+  #preview-strip{display:flex;flex-direction:column;gap:16px}
+  .preview-card{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:14px;animation:fadeIn .3s ease;display:flex;flex-direction:column;gap:12px}
+  .preview-card .card-title{font-size:.75rem;font-weight:700;color:var(--muted);border-bottom:1px solid var(--border);padding-bottom:8px}
+  .preview-thumbs{display:flex;gap:14px;flex-wrap:nowrap;width:100%}
+  .preview-thumb{display:flex;flex-direction:column;align-items:center;gap:6px;flex:1;min-width:0}
+  .preview-thumb span{font-size:.72rem;color:var(--muted);font-weight:700}
+  .preview-thumb img{width:100%;height:auto;max-width:450px;object-fit:contain;border-radius:4px;background:repeating-conic-gradient(#333 0% 25%,#222 0% 50%) 0 0/16px 16px}
+  .b64-section{display:flex;flex-direction:column;gap:6px}
+  .b64-header{display:flex;align-items:center;justify-content:space-between}
+  .b64-label{font-size:.72rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:1px}
+  .btn-copy{padding:4px 12px;font-size:.72rem;font-family:'JetBrains Mono',monospace;background:#333;color:var(--green);border:1px solid var(--green-dim);border-radius:3px;cursor:pointer;transition:background .15s;font-weight:700}
+  .btn-copy:hover{background:#3a3a3a}
+  .btn-copy.copied{color:var(--yellow);border-color:var(--yellow)}
+  .btn-download{padding:4px 12px;font-size:.72rem;font-family:'JetBrains Mono',monospace;background:#333;color:var(--blue);border:1px solid var(--blue);border-radius:3px;cursor:pointer;transition:background .15s;font-weight:700}
+  .btn-download:hover{background:#1a3a4a}
+  .btn-regenerate{padding:4px 12px;font-size:.72rem;font-family:'JetBrains Mono',monospace;background:#333;color:var(--green);border:1px solid var(--green);border-radius:3px;cursor:pointer;transition:background .15s;font-weight:700}
+  .btn-regenerate:hover:not(:disabled){background:#1a4a1a}
+  .btn-regenerate:disabled{opacity:.5;cursor:not-allowed}
+  .b64-block{background:#111;border:1px solid #333;border-radius:3px;padding:8px 10px;font-size:.65rem;color:#888;overflow-x:auto;white-space:nowrap;max-height:60px;overflow-y:hidden;font-family:'JetBrains Mono',monospace;cursor:text;user-select:all}
+  #hidden-input{display:none}
+
+  /* POPUP */
+  #popup-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(4px);z-index:1000;align-items:center;justify-content:center}
+  #popup-overlay.visible{display:flex}
+  #popup-box{background:#1e1e1e;border:2px solid var(--blue);border-radius:12px;max-width:520px;width:90%;padding:32px;box-shadow:0 0 60px rgba(0,102,204,.4);animation:popIn .3s cubic-bezier(.175,.885,.32,1.275);display:flex;flex-direction:column;gap:16px}
+  @keyframes popIn{from{transform:scale(.7);opacity:0}to{transform:scale(1);opacity:1}}
+  .pop-icon{font-size:2.5rem;text-align:center}
+  .pop-title{font-family:'Syne',sans-serif;font-size:1.1rem;font-weight:800;color:var(--white);text-align:center;line-height:1.4}
+  .pop-subtitle{font-size:.78rem;color:var(--muted);text-align:center;line-height:1.6}
+  .pop-action{background:linear-gradient(135deg,#003d7a,#0066cc);border:1px solid var(--blue);border-radius:8px;padding:14px 18px;text-align:center;font-family:'Syne',sans-serif;font-weight:700;font-size:.95rem;color:var(--white);letter-spacing:.5px}
+  .pop-credits{font-size:.65rem;color:#444;text-align:center;border-top:1px solid #333;padding-top:12px}
+  #popup-close{background:var(--green-dim);color:var(--white);border:none;border-radius:6px;padding:12px;font-family:'Syne',sans-serif;font-weight:800;font-size:1rem;cursor:pointer;transition:filter .15s}
+  #popup-close:hover{filter:brightness(1.2)}
+</style>
+</head>
+<body>
+<header>
+  <h1>🖼️ Image Processor</h1>
+  <div id="counter-box">
+    <div class="cnt-num" id="cnt-num">0</div>
+    <div class="cnt-lbl">przetworzonych</div>
+  </div>
+</header>
+<main>
+
+  <!-- Plugin selector -->
+  <div class="section-label">Plugin:</div>
+  <div id="plugin-list"><!-- wypełniane przez JS --></div>
+
+  <!-- Plugin options (dynamiczne) -->
+  <div id="plugin-options"></div>
+
+  <!-- Image scaling selector (shown/hidden based on plugin) -->
+  <div id="scaling-section" style="display:flex;flex-direction:column;gap:8px">
+    <div class="section-label">📏 Rozmiar docelowy:</div>
+    <div class="ctrl-group" style="width:100%">
+      <select id="target-size">
+        <option value="original">Oryginalny (bez skalowania)</option>
+        <option value="256">256px (mobilne)</option>
+        <option value="512">512px (szybkie)</option>
+        <option value="768">768px (średnie)</option>
+        <option value="1024" selected>1024px (standard)</option>
+        <option value="1536">1536px (HD)</option>
+        <option value="2048">2048px (4K preview)</option>
+      </select>
+      <span style="font-size:.7rem;color:var(--muted)">Max wymiar — proporcje zachowane</span>
+    </div>
+  </div>
+
+  <!-- Inpainting editor button (shown only for inpaint plugins) -->
+  <div id="inpaint-button-container" style="border: 2px solid var(--orange); border-radius: 6px; padding: 14px; background: rgba(255,170,0,.05); display: none; align-items: center; gap: 14px;">
+    <span style="font-size: 2rem;">🎨</span>
+    <div style="flex: 1;">
+      <div style="font-weight: 700; color: var(--white); margin-bottom: 4px;">Usuwanie obiektów AI</div>
+      <div style="font-size: .75rem; color: var(--muted); line-height: 1.4;">Zaznacz obiekty do usunięcia używając interaktywnego editora</div>
+    </div>
+    <button id="btn-inpaint-editor" style="background: var(--orange); color: #000; padding: 10px 16px; font-weight: 700; white-space: nowrap; flex-shrink: 0;">OTWÓRZ EDITOR</button>
+  </div>
+  
+  <!-- Separate file input ONLY for inpainting (hidden) -->
+  <input type="file" id="inpaint-file-input" style="display: none;" accept=".jpg,.jpeg,.png,.bmp,.gif,.tiff,.webp">
+
+  <!-- Drop zone (hidden for plugins with dropzone: false) -->
+  <div id="drop-zone">
+    <span class="dz-icon">📂</span>
+    <span class="dz-label">PRZECIĄGNIJ ZDJĘCIA TUTAJ<br>lub kliknij aby wybrać</span><br>
+    <span class="dz-hint">przetwarzanie startuje automatycznie</span>
+  </div>
+  <input type="file" id="hidden-input" multiple accept=".jpg,.jpeg,.png,.bmp,.gif,.tiff,.webp">
+
+  <div class="queue-label">Kolejka:</div>
+  <div id="file-list"></div>
+  <div class="progress-bar-bg">
+    <div class="progress-bar-fill" id="progress-fill"></div>
+    <div class="progress-bar-text" id="progress-text"></div>
+  </div>
+  <div id="status">Gotowy — przeciągnij zdjęcia aby rozpocząć</div>
+  <div class="btn-row">
+    <button id="btn-clear">🗑 WYCZYŚĆ</button>
+  </div>
+  <div id="preview-strip"></div>
+</main>
+
+<!-- POPUP -->
+<div id="popup-overlay">
+  <div id="popup-box">
+    <div class="pop-icon">🎉</div>
+    <div class="pop-title" id="pop-title"></div>
+    <div class="pop-subtitle">
+      To narzędzie zostało napisane przez <strong style="color:var(--green)">Radka</strong> —
+      z miłością do dobrego kodu i wygody rodziny.<br>
+      Może czas na małe podziękowanie? 😊
+    </div>
+    <div class="pop-action" id="pop-action"></div>
+    <div class="pop-credits">Image Processor • by Radek • powered by Flask</div>
+    <button id="popup-close">✅ Rozumiem, zaraz to zrobię!</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  const dropZone=document.getElementById('drop-zone'),
+        fileInput=document.getElementById('hidden-input'),
+        fileList=document.getElementById('file-list'),
+        btnClear=document.getElementById('btn-clear'),
+        statusEl=document.getElementById('status'),
+        fillEl=document.getElementById('progress-fill'),
+        textEl=document.getElementById('progress-text'),
+        previewStrip=document.getElementById('preview-strip'),
+        cntNum=document.getElementById('cnt-num'),
+        pluginListEl=document.getElementById('plugin-list'),
+        pluginOptionsEl=document.getElementById('plugin-options'),
+        popupOverlay=document.getElementById('popup-overlay'),
+        popTitle=document.getElementById('pop-title'),
+        popAction=document.getElementById('pop-action'),
+        popupClose=document.getElementById('popup-close'),
+        targetSizeEl=document.getElementById('target-size'),
+        scalingSectionEl=document.getElementById('scaling-section'),
+        btnInpaintEditor=document.getElementById('btn-inpaint-editor'),
+        inpaintButtonContainer=document.getElementById('inpaint-button-container');
+
+  const ALLOWED=new Set(['image/jpeg','image/png','image/bmp','image/gif','image/tiff','image/webp']);
+  const THANKS_INTERVAL=5;
+  const ACTIONS=[
+    "zrobić Radkowi herbatkę ☕",
+    "ugotować Radkowi kolację 🍝",
+    "zaparzyć Radkowi kawę ☕",
+    "zrobić Radkowi kanapkę 🥪",
+    "zafundować Radkowi masaż ramion 💆",
+    "zapewnić Radkowi godzinę ciszy i spokoju 🤫",
+    "przynieść Radkowi coś słodkiego 🍰",
+    "pozmywać naczynia zamiast Radka 🍽️",
+    "powiedzieć Radkowi że jest genialny 🌟",
+    "pozwolić Radkowi spokojnie pograć bez przerywania 🎮",
+  ];
+
+  let queue=[],processing=false,popupResolve=null;
+  let plugins={},activePlugin=null;
+
+  // ── Przechowywanie b64 poza DOM ───────────────────────────────────────────
+  const b64Store=new Map(); // cardId -> base64 string
+  let cardCounter=0;
+
+  // ── Pluginy ───────────────────────────────────────────────────────────────
+  async function loadPlugins(){
+    const resp=await fetch('/plugins');
+    plugins=await resp.json();
+    renderPluginList();
+  }
+
+  function renderPluginList(){
+    pluginListEl.innerHTML='';
+    const ids=Object.keys(plugins);
+    ids.forEach(id=>{
+      const p=plugins[id];
+      const card=document.createElement('div');
+      card.className='plugin-card'+(id===activePlugin?' active':'');
+      card.dataset.id=id;
+      card.innerHTML=`<span class="pi">${p.icon||'🔧'}</span>
+        <span class="pt">
+          <span class="pname">${p.name}</span>
+          <span class="pdesc">${p.description}</span>
+          <span style="font-size:.6rem;color:#888;margin-top:2px">v${p.version||'?'}</span>
+        </span>`;
+      card.addEventListener('click',()=>selectPlugin(id));
+      pluginListEl.appendChild(card);
+    });
+    // Aktywuj domyślny
+    if(!activePlugin && ids.length>0) selectPlugin(ids[0]);
+  }
+
+  function selectPlugin(id){
+    activePlugin=id;
+    document.querySelectorAll('.plugin-card').forEach(c=>c.classList.toggle('active',c.dataset.id===id));
+    const meta=plugins[id];
+    renderPluginOptions(meta);
+    // Pokaż/ukryj scaling section na podstawie disable_scaling
+    const disableScaling=meta.disable_scaling===true;
+    scalingSectionEl.style.display=disableScaling?'none':'flex';
+    // Pokaż/ukryj dropzone na podstawie dropzone flag
+    const hideDropzone=meta.dropzone===false;
+    dropZone.style.display=hideDropzone?'none':'block';
+    fileList.style.display=hideDropzone?'none':'block';
+    document.querySelector('.progress-bar-bg').style.display=hideDropzone?'none':'block';
+    document.querySelector('.queue-label').style.display=hideDropzone?'none':'block';
+    // Pokaż inpaint button TYLKO dla inpaint pluginów
+    const isInpaintPlugin=id==='inpaint_ai_v2'||id==='inpaint_ai';
+    inpaintButtonContainer.style.display=isInpaintPlugin?'flex':'none';
+  }
+
+  function renderPluginOptions(meta){
+    pluginOptionsEl.innerHTML='';
+    if(!meta||!meta.options) return;
+    Object.entries(meta.options).forEach(([key,opt])=>{
+      const grp=document.createElement('div');grp.className='ctrl-group';
+      
+      let ctrl=null;
+      if(opt.type==='checkbox'){
+        ctrl=document.createElement('input');
+        ctrl.type='checkbox';
+        ctrl.id='opt-'+key;
+        ctrl.dataset.key=key;
+        ctrl.checked=opt.default===true||opt.default==='true';
+        const lbl=document.createElement('label');
+        lbl.style.display='flex';lbl.style.alignItems='center';lbl.style.gap='6px';lbl.style.cursor='pointer';
+        lbl.appendChild(ctrl);
+        lbl.appendChild(document.createTextNode(opt.label));
+        grp.appendChild(lbl);
+      } else if(opt.type==='slider'){
+        const lbl=document.createElement('label');lbl.textContent=opt.label+':';
+        ctrl=document.createElement('input');
+        ctrl.type='range';
+        ctrl.id='opt-'+key;
+        ctrl.dataset.key=key;
+        ctrl.min=opt.min;
+        ctrl.max=opt.max;
+        ctrl.value=opt.default;
+        const valSpan=document.createElement('span');
+        valSpan.style.marginLeft='8px';
+        valSpan.textContent=opt.default;
+        ctrl.addEventListener('input',e=>{valSpan.textContent=e.target.value});
+        grp.appendChild(lbl);
+        grp.appendChild(ctrl);
+        grp.appendChild(valSpan);
+      } else {
+        const lbl=document.createElement('label');lbl.textContent=opt.label+':';
+        ctrl=document.createElement('select');
+        ctrl.id='opt-'+key;
+        ctrl.dataset.key=key;
+        if(opt.choices){
+          Object.entries(opt.choices).forEach(([val,label])=>{
+            const o=document.createElement('option');
+            o.value=val;o.textContent=label;
+            if(val===opt.default)o.selected=true;
+            ctrl.appendChild(o);
+          });
+        }
+        grp.appendChild(lbl);
+        grp.appendChild(ctrl);
+      }
+      pluginOptionsEl.appendChild(grp);
+    });
+  }
+
+  function getOptions(){
+    const opts={};
+    pluginOptionsEl.querySelectorAll('select, input[type="range"], input[type="checkbox"]').forEach(s=>{
+      if(s.type==='checkbox'){
+        opts[s.dataset.key]=s.checked ? 'true' : 'false';
+      } else {
+        opts[s.dataset.key]=s.value;
+      }
+    });
+    return opts;
+  }
+
+  // ── Licznik ───────────────────────────────────────────────────────────────
+  fetch('/counter').then(r=>r.json()).then(d=>cntNum.textContent=d.count).catch(()=>{});
+
+  // ── Popup ─────────────────────────────────────────────────────────────────
+  popupClose.addEventListener('click',()=>{
+    popupOverlay.classList.remove('visible');
+    if(popupResolve){popupResolve();popupResolve=null;}
+  });
+  function showPopup(count){
+    return new Promise(resolve=>{
+      popupResolve=resolve;
+      const action=ACTIONS[(Math.floor(count/THANKS_INTERVAL)-1)%ACTIONS.length];
+      popTitle.textContent=`Właśnie przetworzyłeś ${count}. zdjęcie! 🎊`;
+      popAction.textContent=`💡 Pomysł: może warto ${action}?`;
+      popupOverlay.classList.add('visible');
+    });
+  }
+
+  // ── Drag & drop ───────────────────────────────────────────────────────────
+  dropZone.addEventListener('dragover',e=>{e.preventDefault();dropZone.classList.add('drag-over')});
+  dropZone.addEventListener('dragleave',()=>dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop',e=>{e.preventDefault();dropZone.classList.remove('drag-over');addFiles([...e.dataTransfer.files])});
+  dropZone.addEventListener('click',()=>fileInput.click());
+  fileInput.addEventListener('change',()=>{addFiles([...fileInput.files]);fileInput.value=''});
+
+  function addFiles(files){
+    const valid=files.filter(f=>ALLOWED.has(f.type)||/\.(jpe?g|png|bmp|gif|tiff?|webp)$/i.test(f.name));
+    if(!valid.length)return;
+    valid.forEach(f=>{
+      const item={file:f,status:'pending',rowEl:null};
+      item.rowEl=createRow(item);queue.push(item);fileList.appendChild(item.rowEl);
+    });
+    updateProgress();startProcessing();
+  }
+
+  function createRow(item){
+    const row=document.createElement('div');row.className='file-row';
+    row.innerHTML=`<span class="icon">⏳</span><span class="name">${item.file.name}</span><span class="status"></span>`;
+    return row;
+  }
+  function updateRow(item,icon,st,cls){
+    item.rowEl.querySelector('.icon').textContent=icon;
+    item.rowEl.querySelector('.status').textContent=st;
+    item.rowEl.className='file-row'+(cls?' '+cls:'');
+  }
+  function updateProgress(){
+    const total=queue.length,done=queue.filter(i=>i.status==='done'||i.status==='error').length;
+    const pct=total?Math.round(done/total*100):0;
+    fillEl.style.width=pct+'%';
+    textEl.textContent=total?`${done}/${total} (${pct}%)`:'';
+  }
+  function setStatus(msg,color='yellow'){
+    statusEl.textContent=msg;
+    statusEl.style.color={yellow:'var(--yellow)',green:'var(--green)',orange:'var(--orange)',red:'#ff4444',muted:'var(--muted)'}[color]||'var(--yellow)';
+  }
+
+  async function startProcessing(){
+    if(processing)return;
+    const pending=queue.filter(i=>i.status==='pending');
+    if(!pending.length)return;
+    processing=true;setStatus('Przetwarzanie...','orange');
+    for(const item of pending){
+      item.status='processing';
+      updateRow(item,'⏳','przetwarzanie...','');
+      setStatus(`Przetwarzanie: ${item.file.name}`,'orange');
+      try{
+        const result=await uploadFile(item.file);
+        item.status='done';updateRow(item,'✅','gotowe','done');
+        addPreview(item.file,result.blob,result.b64,result.name);
+        // Usuń automatyczne pobieranie - tylko po kliknięciu "Pobierz"
+        const cntResp=await fetch('/counter').then(r=>r.json());
+        const count=cntResp.count;cntNum.textContent=count;
+        if(count%THANKS_INTERVAL===0){
+          setStatus('⏸ Przerwa — zamknij okno aby kontynuować','yellow');
+          await showPopup(count);
+          setStatus('Przetwarzanie...','orange');
+        }
+      }catch(err){
+        item.status='error';updateRow(item,'❌',err.message?.slice(0,40)||'błąd','error');
+      }
+      updateProgress();
+    }
+    processing=false;
+    const errors=queue.filter(i=>i.status==='error').length;
+    setStatus(errors?`✅ Gotowe — ${errors} błąd(ów)`:'✅ Gotowe!',errors?'orange':'green');
+  }
+
+  async function uploadFile(file, abortSignal=null){
+    const fd=new FormData();
+    fd.append('image',file);
+    fd.append('plugin',activePlugin||'remove_background');
+    // Nie wysyłaj target_size jeśli plugin ma disable_scaling
+    const activeMeta=plugins[activePlugin];
+    const disableScaling=activeMeta && activeMeta.disable_scaling===true;
+    if(!disableScaling){
+      fd.append('target_size',targetSizeEl.value||'original');
+    }
+    const opts=getOptions();
+    Object.entries(opts).forEach(([k,v])=>fd.append('opt_'+k,v));
+    
+    const fetchOpts={method:'POST',body:fd};
+    if(abortSignal) fetchOpts.signal=abortSignal;
+    
+    const resp=await fetch('/process',fetchOpts);
+    if(!resp.ok){
+      const j=await resp.json().catch(()=>({}));
+      throw new Error(j.error||`HTTP ${resp.status}`);
+    }
+    
+    // /process zwraca JSON z image_id
+    const jsonResp=await resp.json();
+    const imageId=jsonResp.image_id;
+    const downloadUrl=jsonResp.download_url;
+    const fileExt=jsonResp.file_extension||'png';
+    
+    // Pobierz rzeczywisty obraz z cache'a
+    const blobResp=await fetch(downloadUrl);
+    if(!blobResp.ok) throw new Error('Failed to fetch cached result');
+    
+    const blob=await blobResp.blob();
+    const b64=await blobToBase64(blob);
+    
+    return {blob, b64, name: file.name.replace(/\.[^.]+$/, '') + '_out.' + fileExt};
+  }
+
+  function blobToBase64(blob){
+    return new Promise((resolve,reject)=>{
+      const reader=new FileReader();
+      reader.onload=()=>resolve(reader.result.split(',')[1]);
+      reader.onerror=reject;reader.readAsDataURL(blob);
+    });
+  }
+
+  function triggerDownload(blob,filename){
+    const url=URL.createObjectURL(blob),a=document.createElement('a');
+    a.href=url;a.download=filename;document.body.appendChild(a);a.click();
+    document.body.removeChild(a);setTimeout(()=>URL.revokeObjectURL(url),5000);
+  }
+
+  function addPreview(origFile,resultBlob,b64,filename){
+    const cardId='card-'+(cardCounter++);
+    b64Store.set(cardId,b64);  // przechowuj pełny b64 poza DOM
+
+    const b64preview=b64.slice(0,120)+'…';
+    const card=document.createElement('div');card.className='preview-card';
+    // Przechowuj blob URL w atrybucie karty
+    card.dataset.blobUrl = URL.createObjectURL(resultBlob);
+    card.innerHTML=`
+      <div class="card-title">📄 ${filename}</div>
+      <div class="preview-thumbs">
+        <div class="preview-thumb">
+          <img src="${URL.createObjectURL(origFile)}" alt="oryginał">
+          <span>oryginał</span>
+        </div>
+        <div class="preview-thumb">
+          <img src="${card.dataset.blobUrl}" alt="wynik">
+          <span>wynik</span>
+        </div>
+      </div>
+      <div class="b64-section">
+        <div class="b64-header">
+          <span class="b64-label">base64 (PNG)</span>
+          <button class="btn-copy" data-card="${cardId}">📋 Copy</button>
+          <button class="btn-download" data-blob-card="${cardId}" data-filename="${filename}">⬇️ Pobierz</button>
+          <button class="btn-regenerate" data-card="${cardId}">🔄 Regeneruj</button>
+        </div>
+        <div class="b64-block">${b64preview}</div>
+      </div>`;
+
+    card.querySelector('.btn-copy').addEventListener('click',function(){
+      const full=b64Store.get(this.dataset.card)||'';
+      const btn=this;
+      navigator.clipboard.writeText(full).then(()=>{
+        btn.textContent='✅ Skopiowano!';btn.classList.add('copied');
+        setTimeout(()=>{btn.textContent='📋 Copy';btn.classList.remove('copied')},2000);
+      }).catch(()=>{
+        const ta=document.createElement('textarea');
+        ta.value=full;ta.style.position='fixed';ta.style.opacity='0';
+        document.body.appendChild(ta);ta.focus();ta.select();
+        try{document.execCommand('copy');}catch(e){}
+        document.body.removeChild(ta);
+        btn.textContent='✅ Skopiowano!';btn.classList.add('copied');
+        setTimeout(()=>{btn.textContent='📋 Copy';btn.classList.remove('copied')},2000);
+      });
+    });
+        
+    // Obsłuż pobieranie
+    const downloadBtn = card.querySelector('.btn-download');
+    if (downloadBtn) {
+      downloadBtn.addEventListener('click', function() {
+        const fname = this.dataset.filename;
+        // Pobierz blob URL z atrybutu karty
+        const blobUrl = card.dataset.blobUrl;
+        if(!blobUrl) {
+          alert('Wynik niedostępny');
+          return;
+        }
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = fname;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+      });
+    }
+    
+    // Obsłuż regenerację - z aborcją poprzedniej operacji
+    const regenerateBtn = card.querySelector('.btn-regenerate');
+    let currentController = null;
+    
+    if (regenerateBtn) {
+      regenerateBtn.addEventListener('click', async function() {
+        if(processing) return;
+        const btn = this;
+        
+        // Zabij poprzednią operację jeśli trwa
+        if(currentController) {
+          currentController.abort();
+          await new Promise(r=>setTimeout(r, 100));
+        }
+        
+        // Stwórz nowy controller dla tej operacji
+        currentController = new AbortController();
+        
+        btn.disabled = true;
+        let dots = 0;
+        const dotInterval = setInterval(() => {
+          dots = (dots + 1) % 4;
+          btn.textContent = '⏳ Regeneruję' + '.'.repeat(dots);
+        }, 500);
+        
+        try {
+          const result = await uploadFile(origFile, currentController.signal);
+          clearInterval(dotInterval);
+          currentController = null;
+          b64Store.set(cardId, result.b64);
+          // Zaktualizuj preview i base64
+          const thumbs = card.querySelector('.preview-thumbs');
+          const resultThumb = thumbs.querySelectorAll('.preview-thumb')[1];
+          const newBlobUrl = URL.createObjectURL(result.blob);
+          resultThumb.querySelector('img').src = newBlobUrl;
+          // Aktualizuj blob URL w atrybucie karty!
+          card.dataset.blobUrl = newBlobUrl;
+          const b64Block = card.querySelector('.b64-block');
+          b64Block.textContent = result.b64.slice(0,120)+'…';
+          // Aktualizuj download button filename
+          const dlBtn = card.querySelector('.btn-download');
+          dlBtn.dataset.filename = result.name;
+          btn.textContent = '✅ Regenerowano!';
+          setTimeout(() => {btn.textContent = '🔄 Regeneruj'; btn.disabled = false;}, 2000);
+        } catch(err) {
+          clearInterval(dotInterval);
+          if(err.name === 'AbortError') {
+            btn.textContent = '⏸ Anulowano';
+            setTimeout(() => {btn.textContent = '🔄 Regeneruj'; btn.disabled = false;}, 1500);
+          } else {
+            btn.textContent = '❌ Błąd: ' + err.message.slice(0,30);
+            setTimeout(() => {btn.textContent = '🔄 Regeneruj'; btn.disabled = false;}, 3000);
+          }
+          currentController = null;
+        }
+      });
+    }
+    previewStrip.prepend(card);
+  }
+
+  btnClear.addEventListener('click',()=>{
+    if(processing)return;
+    queue=[];fileList.innerHTML='';previewStrip.innerHTML='';
+    b64Store.clear();
+    fillEl.style.width='0%';textEl.textContent='';
+    setStatus('Gotowy — przeciągnij zdjęcia aby rozpocząć');
+  });
+
+  // Inpaint Editor button - uses SEPARATE file input, not shared one
+  if (btnInpaintEditor) {
+    console.log('[init] Inpaint button found, attaching handler');
+    const inpaintFileInput = document.getElementById('inpaint-file-input');
+    if (!inpaintFileInput) {
+      console.error('[init] inpaint-file-input NOT found!');
+    } else {
+      console.log('[init] inpaint-file-input found, attaching change listener');
+      
+      btnInpaintEditor.addEventListener('click', () => {
+        console.log('[inpaint] Button clicked, opening file picker');
+        inpaintFileInput.click();
+      });
+      
+      inpaintFileInput.addEventListener('change', async function() {
+        console.log('[inpaint] inpaint-file-input changed, files.length=', this.files.length);
+        
+        if (this.files.length === 0) {
+          console.log('[inpaint] No files selected');
+          return;
+        }
+        
+        const file = this.files[0];
+        console.log('[inpaint] File selected:', file.name, file.size);
+        
+        try {
+          setStatus('⏳ Otwieranie edytora inpaintingu...');
+          const formData = new FormData();
+          formData.append('image', file);
+          
+          console.log('[inpaint] Uploading to /api/inpaint/upload');
+          const res = await fetch('/api/inpaint/upload', {
+            method: 'POST',
+            body: formData
+          });
+          
+          const data = await res.json();
+          console.log('[inpaint] Response:', data);
+          
+          if (data.session_id) {
+            console.log('[inpaint] Opening editor for session:', data.session_id);
+            window.open(data.editor_url, 'InpaintEditor', 'width=1400,height=900');
+            setStatus('✅ Editor otwarty w nowym oknie');
+          } else {
+            setStatus('❌ Błąd: ' + (data.error || 'Nie udało się otworzyć editora'), 'error');
+          }
+        } catch (err) {
+          console.error('[inpaint] Error:', err);
+          setStatus('❌ Błąd: ' + err.message, 'error');
+        }
+        
+        // Reset for next use
+        inpaintFileInput.value = '';
+      });
+    }
+  } else {
+    console.error('[init] Inpaint button NOT found!');
+  }
+
+  loadPlugins();
+})();
+</script>
+</body>
+</html>

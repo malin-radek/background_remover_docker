@@ -1,0 +1,22 @@
+flask>=3.0.0
+gunicorn>=21.0.0
+pillow>=10.0.0
+rembg>=2.0.57
+onnxruntime>=1.18.0
+python-dotenv>=1.0.0
+numpy>=1.24.0
+opencv-python>=4.8.0
+scipy>=1.10.0
+imageio>=2.14.0
+imageio-ffmpeg>=0.4.8
+torch>=2.0.0 --index-url https://download.pytorch.org/whl/cpu
+torchvision>=0.15.0 --index-url https://download.pytorch.org/whl/cpu
+tqdm
+timm>=0.9.0
+spandrel
+simple-lama-inpainting 
+git+https://github.com/ChaoningZhang/MobileSAM.git
+segment_anything
+moviepy
+imageio-ffmpeg>=0.4.8
+scipy>=1.10.0

@@ -1,0 +1,6 @@
+cache/
+.github/
+.*cache/
+plugins/models/
+__pycache__/
+*.pyc
