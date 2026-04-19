@@ -64,12 +64,7 @@ import tempfile
 import os
 import numpy as np
 from PIL import Image
-# moviepy imported lazily inside process_video_to_gif() to avoid import-time failures
-# If moviepy is missing, plugin will raise ImportError when executed.
 from rembg import remove, new_session
-
-# Importujemy logikę Twoich funkcji (zakładając, że są w tym samym pliku lub wklejone poniżej)
-# Dla zwięzłości wklejam kluczowe mechanizmy przetwarzania klatki
 
 _sessions = {}
 
@@ -82,6 +77,11 @@ def process_video_to_gif(video_bytes: bytes, options: dict) -> bytes:
     """
     Główna funkcja przetwarzająca wideo na GIF.
     """
+    try:
+        from moviepy.editor import VideoFileClip
+    except ImportError as e:
+        raise ImportError(f"moviepy is required for remove_bg_movie plugin. Install: pip install moviepy imageio-ffmpeg. Error: {e}") from e
+    
     model_name = options.get("model", "u2net")
     target_width = int(options.get("max_width", 400))
     target_fps = int(options.get("fps", 10))
@@ -91,15 +91,13 @@ def process_video_to_gif(video_bytes: bytes, options: dict) -> bytes:
     session = _get_session(model_name)
 
     # 1. Zapisz bajty do pliku tymczasowego (MoviePy tego wymaga)
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as temp_video:
-        temp_video.write(video_bytes)
-        temp_path = temp_video.name
-
+    temp_path = None
+    clip = None
     try:
-        try:
-            from moviepy.editor import VideoFileClip
-        except ImportError as e:
-            raise ImportError("moviepy is required for remove_bg_movie plugin: install 'moviepy' and 'imageio-ffmpeg'") from e
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as temp_video:
+            temp_video.write(video_bytes)
+            temp_path = temp_video.name
+
         clip = VideoFileClip(temp_path)
         
         # Zmniejszenie rozdzielczości dla szybkości przetwarzania GIF
@@ -119,10 +117,8 @@ def process_video_to_gif(video_bytes: bytes, options: dict) -> bytes:
             # 3. Usuwanie tła
             no_bg_frame = remove(pil_frame, session=session)
             
-            # Aplikacja Twojej logiki obramowania (jeśli wybrana)
+            # Aplikacja logiki obramowania (jeśli wybrana)
             if outline_thickness > 0 and outline_color != "none":
-                # Tutaj używamy Twojej funkcji _apply_outline z poprzedniego kodu
-                from scipy import ndimage # zakładając dostępność
                 no_bg_frame = _apply_outline_simple(no_bg_frame, outline_thickness, outline_color)
 
             processed_frames.append(no_bg_frame)
@@ -138,15 +134,19 @@ def process_video_to_gif(video_bytes: bytes, options: dict) -> bytes:
             append_images=processed_frames[1:],
             duration=int(1000 / target_fps),
             loop=0,
-            disposal=2 # Ważne: usuwa poprzednią klatkę (zapobiega "duchom" przy przezroczystości)
+            disposal=2  # Ważne: usuwa poprzednią klatkę (zapobiega "duchom" przy przezroczystości)
         )
         
         return out_buf.getvalue()
 
     finally:
-        clip.close()
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
+        if clip is not None:
+            clip.close()
+        if temp_path is not None and os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except Exception:
+                pass  # Ignore cleanup errors
 
 def _apply_outline_simple(img, thickness, color_name):
     # Uproszczona wersja Twojej funkcji dla wydajności wideo
