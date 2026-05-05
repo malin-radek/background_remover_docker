@@ -109,6 +109,22 @@
   .pop-credits{font-size:.65rem;color:#444;text-align:center;border-top:1px solid #333;padding-top:12px}
   #popup-close{background:var(--green-dim);color:var(--white);border:none;border-radius:6px;padding:12px;font-family:'Syne',sans-serif;font-weight:800;font-size:1rem;cursor:pointer;transition:filter .15s}
   #popup-close:hover{filter:brightness(1.2)}
+  #text-editor-open{display:none;background:var(--blue);color:#fff}
+  #text-editor-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:1200;align-items:center;justify-content:center}
+  #text-editor-overlay.visible{display:flex}
+  #text-editor-box{width:min(1100px,96vw);height:min(760px,94vh);background:#1f1f1f;border:1px solid #4b4b4b;border-radius:8px;display:flex;gap:12px;padding:12px}
+  #te-left{flex:1;display:flex;flex-direction:column;gap:8px;min-width:0}
+  #te-controls{width:330px;background:#252525;border:1px solid #3a3a3a;border-radius:6px;padding:10px;overflow:auto;display:flex;flex-direction:column;gap:8px}
+  #te-stage{flex:1;background:#111;border:1px solid #333;border-radius:6px;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
+  #te-img-wrap{position:relative;max-width:100%;max-height:100%;overflow:visible}
+  #te-img{display:block;max-width:100%;max-height:100%}
+  #te-text-box{position:absolute;left:20px;top:20px;padding:4px 8px;border:1px dashed #66aaff;cursor:move;white-space:pre;user-select:none;overflow:visible}
+  #te-resize{position:absolute;right:-8px;bottom:-8px;width:14px;height:14px;background:#66aaff;border:1px solid #fff;border-radius:2px;cursor:nwse-resize}
+  #te-bubble-tip{position:absolute;width:12px;height:12px;border-radius:50%;background:#ffcc00;border:2px solid #111;cursor:crosshair;display:none;transform:translate(-50%,-50%)}
+  .te-row{display:flex;flex-direction:column;gap:4px}
+  .te-color-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .te-row input,.te-row select,.te-row textarea{background:#333;color:#fff;border:1px solid #555;border-radius:4px;padding:6px;font-family:'JetBrains Mono',monospace}
+  .te-actions{display:flex;gap:8px}
 </style>
 </head>
 <body>
@@ -175,6 +191,7 @@
   <div id="status">Gotowy — przeciągnij zdjęcia aby rozpocząć</div>
   <div class="btn-row">
     <button id="btn-clear">🗑 WYCZYŚĆ</button>
+    <button id="text-editor-open">📝 EDYTOR TEKSTU</button>
   </div>
   <div id="preview-strip"></div>
 </main>
@@ -192,6 +209,46 @@
     <div class="pop-action" id="pop-action"></div>
     <div class="pop-credits">Image Processor • by Radek • powered by Flask</div>
     <button id="popup-close">✅ Rozumiem, zaraz to zrobię!</button>
+  </div>
+</div>
+
+<!-- TEXT EDITOR -->
+<div id="text-editor-overlay">
+  <div id="text-editor-box">
+    <div id="te-left">
+      <div id="te-stage">
+        <div id="te-img-wrap">
+          <img id="te-img" alt="Podglad">
+          <div id="te-text-box">YOUR TEXT HERE<div id="te-resize"></div></div>
+          <div id="te-bubble-tip" title="Punkt dziubka dymka"></div>
+        </div>
+      </div>
+      <input type="file" id="te-file" accept=".jpg,.jpeg,.png,.bmp,.gif,.tiff,.webp">
+    </div>
+    <div id="te-controls">
+      <div class="te-row"><label>Tekst</label><textarea id="te-text" rows="4"></textarea></div>
+      <div class="te-row"><label>Czcionka</label><select id="te-font"></select></div>
+      <div class="te-row"><label>Styl</label><select id="te-style"></select></div>
+      <div class="te-row"><label>Wielkość</label><input id="te-size" type="range" min="20" max="300" step="1"></div>
+      <div class="te-row"><label>Przezroczystość</label><input id="te-opacity" type="range" min="0" max="100" step="1"></div>
+      <div class="te-color-grid">
+        <div class="te-row"><label>Wnętrze</label><input id="te-color" type="color"></div>
+        <div class="te-row"><label>Obwódka</label><input id="te-outline-color" type="color"></div>
+        <div class="te-row"><label>Poświata</label><input id="te-glow-color" type="color"></div>
+        <div class="te-row"><label>Cień</label><input id="te-shadow-color" type="color"></div>
+        <div class="te-row"><label>Dymek tło</label><input id="te-bubble-bg-color" type="color"></div>
+        <div class="te-row"><label>Invert tło</label><input id="te-invert-bg-color" type="color"></div>
+      </div>
+      <div class="te-row" id="te-bubble-irr-row"><label>Dymek: nieregularność</label><input id="te-bubble-irr" type="range" min="0" max="100" step="1"></div>
+      <div class="te-row" id="te-bubble-mode-row"><label>Dymek: tryb</label><select id="te-bubble-mode"><option value="speech">Mowa</option><option value="thought">Myśl</option></select></div>
+      <div class="te-row" id="te-thought-count-row"><label>Myśl: liczba elips</label><input id="te-thought-count" type="range" min="2" max="8" step="1"></div>
+      <div class="te-row"><label>X</label><input id="te-x" type="number"></div>
+      <div class="te-row"><label>Y</label><input id="te-y" type="number"></div>
+      <div class="te-actions">
+        <button id="te-apply">✅ Zastosuj</button>
+        <button id="te-close">❌ Zamknij</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -216,6 +273,35 @@
         scalingSectionEl=document.getElementById('scaling-section'),
         btnInpaintEditor=document.getElementById('btn-inpaint-editor'),
         inpaintButtonContainer=document.getElementById('inpaint-button-container');
+  const textEditorOpenBtn=document.getElementById('text-editor-open'),
+        teOverlay=document.getElementById('text-editor-overlay'),
+        teImg=document.getElementById('te-img'),
+        teFile=document.getElementById('te-file'),
+        teTextBox=document.getElementById('te-text-box'),
+        teText=document.getElementById('te-text'),
+        teFont=document.getElementById('te-font'),
+        teStyle=document.getElementById('te-style'),
+        teSize=document.getElementById('te-size'),
+        teOpacity=document.getElementById('te-opacity'),
+        teColor=document.getElementById('te-color'),
+        teOutlineColor=document.getElementById('te-outline-color'),
+        teGlowColor=document.getElementById('te-glow-color'),
+        teShadowColor=document.getElementById('te-shadow-color'),
+        teBubbleBgColor=document.getElementById('te-bubble-bg-color'),
+        teInvertBgColor=document.getElementById('te-invert-bg-color'),
+        teBubbleIrr=document.getElementById('te-bubble-irr'),
+        teBubbleIrrRow=document.getElementById('te-bubble-irr-row'),
+        teBubbleModeRow=document.getElementById('te-bubble-mode-row'),
+        teBubbleMode=document.getElementById('te-bubble-mode'),
+        teThoughtCountRow=document.getElementById('te-thought-count-row'),
+        teThoughtCount=document.getElementById('te-thought-count'),
+        teBubbleTip=document.getElementById('te-bubble-tip'),
+        teX=document.getElementById('te-x'),
+        teY=document.getElementById('te-y'),
+        teApply=document.getElementById('te-apply'),
+        teClose=document.getElementById('te-close'),
+        teResize=document.getElementById('te-resize');
+  let teCurrentFile=null, teRenderTimer=null, teRenderToken=0;
 
   const ALLOWED=new Set(['image/jpeg','image/png','image/bmp','image/gif','image/tiff','image/webp']);
   const THANKS_INTERVAL=5;
@@ -272,6 +358,8 @@
     document.querySelectorAll('.plugin-card').forEach(c=>c.classList.toggle('active',c.dataset.id===id));
     const meta=plugins[id];
     renderPluginOptions(meta);
+    const isTextOnImage=id==='text_on_image';
+    pluginOptionsEl.style.display=isTextOnImage?'none':'flex';
     // Pokaż/ukryj scaling section na podstawie disable_scaling
     const disableScaling=meta.disable_scaling===true;
     scalingSectionEl.style.display=disableScaling?'none':'flex';
@@ -284,6 +372,12 @@
     // Pokaż inpaint button TYLKO dla inpaint pluginów
     const isInpaintPlugin=id==='inpaint_ai_v2'||id==='inpaint_ai';
     inpaintButtonContainer.style.display=isInpaintPlugin?'flex':'none';
+    textEditorOpenBtn.style.display=isTextOnImage?'inline-block':'none';
+    if(isTextOnImage){
+      setTimeout(openTextEditor,0);
+    } else {
+      teOverlay.classList.remove('visible');
+    }
   }
 
   function renderPluginOptions(meta){
@@ -374,6 +468,223 @@
     });
     return opts;
   }
+
+  function getCtrlValue(key,fallback=''){
+    const el=document.getElementById('opt-'+key);
+    if(!el) return fallback;
+    return el.value ?? fallback;
+  }
+  function setCtrlValue(key,val){
+    const el=document.getElementById('opt-'+key);
+    if(!el) return;
+    el.value=val;
+    if(el.type==='range'){
+      const span=el.parentElement.querySelector('span');
+      if(span) span.textContent=val;
+    }
+  }
+  function rgbToHex(r,g,b){
+    const n=v=>Math.max(0,Math.min(255,Number(v)||0)).toString(16).padStart(2,'0');
+    return '#'+n(r)+n(g)+n(b);
+  }
+  function hexToRgb(hex){
+    const h=(hex||'#ffffff').replace('#','');
+    return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)];
+  }
+  function syncPreview(){
+    const scale=((teImg.clientWidth||1)/(teImg.naturalWidth||teImg.clientWidth||1));
+    teTextBox.textContent=teText.value||' ';
+    teTextBox.appendChild(teResize);
+    teTextBox.style.fontFamily=teFont.value||'sans-serif';
+    teTextBox.style.fontSize=((Number(teSize.value)||80)*scale)+'px';
+    teTextBox.style.color=teColor.value||'#ffffff';
+    teTextBox.style.opacity=((Number(teOpacity.value)||100)/100).toString();
+    teTextBox.style.left=((Number(teX.value)||0)*scale)+'px';
+    teTextBox.style.top=((Number(teY.value)||0)*scale)+'px';
+    const s=teStyle.value;
+    teBubbleIrrRow.style.display=s==='speech_bubble'?'flex':'none';
+    teBubbleModeRow.style.display=s==='speech_bubble'?'flex':'none';
+    teThoughtCountRow.style.display=(s==='speech_bubble' && teBubbleMode.value==='thought')?'flex':'none';
+    teBubbleTip.style.display=s==='speech_bubble'?'block':'none';
+    teTextBox.style.textShadow='none';
+    teTextBox.style.webkitTextStroke='0 transparent';
+    teTextBox.style.background='transparent';
+    teTextBox.style.filter='none';
+    if(s==='logo'){teTextBox.style.textShadow=`2px 2px 0 ${teShadowColor.value}, 4px 4px 8px ${teShadowColor.value}`;teTextBox.style.webkitTextStroke=`2px ${teOutlineColor.value}`;}
+    if(s==='neon'){teTextBox.style.textShadow=`0 0 6px ${teGlowColor.value}, 0 0 18px ${teGlowColor.value}`;}
+    if(s==='comic'){teTextBox.style.webkitTextStroke=`3px ${teOutlineColor.value}`;}
+    if(s==='shadow_deep'){teTextBox.style.textShadow=`4px 4px 0 ${teShadowColor.value},8px 8px 0 ${teShadowColor.value}`;}
+    if(s==='invert'){teTextBox.style.background='rgba(255,255,255,.8)';teTextBox.style.color='#000';}
+    const tipScale=((teImg.clientWidth||1)/(teImg.naturalWidth||teImg.clientWidth||1));
+    teBubbleTip.style.left=((Number(getCtrlValue('bubble_point_x',500))||500)*tipScale)+'px';
+    teBubbleTip.style.top=((Number(getCtrlValue('bubble_point_y',500))||500)*tipScale)+'px';
+  }
+  function queueEditorRender(){
+    if(!teOverlay.classList.contains('visible')) return;
+    if(!teCurrentFile) return;
+    if(teRenderTimer) clearTimeout(teRenderTimer);
+    teRenderTimer=setTimeout(async ()=>{
+      const token=++teRenderToken;
+      setCtrlValue('text',teText.value);
+      setCtrlValue('font',teFont.value);
+      setCtrlValue('style',teStyle.value);
+      setCtrlValue('font_size',teSize.value);
+      setCtrlValue('position_x',teX.value);
+      setCtrlValue('position_y',teY.value);
+      const [r,g,b]=hexToRgb(teColor.value);
+      setCtrlValue('color_r',r); setCtrlValue('color_g',g); setCtrlValue('color_b',b);
+      const [or,og,ob]=hexToRgb(teOutlineColor.value);
+      const [gr,gg,gb]=hexToRgb(teGlowColor.value);
+      const [sr,sg,sb]=hexToRgb(teShadowColor.value);
+      const [br,bg,bb]=hexToRgb(teBubbleBgColor.value);
+      const [ir,ig,ib]=hexToRgb(teInvertBgColor.value);
+      setCtrlValue('outline_r',or); setCtrlValue('outline_g',og); setCtrlValue('outline_b',ob);
+      setCtrlValue('glow_r',gr); setCtrlValue('glow_g',gg); setCtrlValue('glow_b',gb);
+      setCtrlValue('shadow_r',sr); setCtrlValue('shadow_g',sg); setCtrlValue('shadow_b',sb);
+      setCtrlValue('bubble_bg_r',br); setCtrlValue('bubble_bg_g',bg); setCtrlValue('bubble_bg_b',bb);
+      setCtrlValue('invert_bg_r',ir); setCtrlValue('invert_bg_g',ig); setCtrlValue('invert_bg_b',ib);
+      setCtrlValue('bubble_irregularity',teBubbleIrr.value);
+      setCtrlValue('bubble_mode',teBubbleMode.value);
+      setCtrlValue('thought_count',teThoughtCount.value);
+      setCtrlValue('opacity',teOpacity.value);
+      try{
+        const result=await uploadFile(teCurrentFile);
+        if(token!==teRenderToken) return;
+        teImg.src=URL.createObjectURL(result.blob);
+      }catch(e){}
+    },200);
+  }
+  function openTextEditor(){
+    const styleSel=document.getElementById('opt-style');
+    const fontSel=document.getElementById('opt-font');
+    teStyle.innerHTML=styleSel?styleSel.innerHTML:'';
+    teFont.innerHTML=fontSel?fontSel.innerHTML:'';
+    teText.value=getCtrlValue('text','YOUR TEXT HERE');
+    teSize.value=getCtrlValue('font_size','80');
+    teX.value=getCtrlValue('position_x','100');
+    teY.value=getCtrlValue('position_y','100');
+    teStyle.value=getCtrlValue('style','logo');
+    teFont.value=getCtrlValue('font',teFont.value||'');
+    teColor.value=rgbToHex(getCtrlValue('color_r',255),getCtrlValue('color_g',255),getCtrlValue('color_b',255));
+    teOutlineColor.value=rgbToHex(getCtrlValue('outline_r',0),getCtrlValue('outline_g',0),getCtrlValue('outline_b',0));
+    teGlowColor.value=rgbToHex(getCtrlValue('glow_r',255),getCtrlValue('glow_g',255),getCtrlValue('glow_b',0));
+    teShadowColor.value=rgbToHex(getCtrlValue('shadow_r',80),getCtrlValue('shadow_g',80),getCtrlValue('shadow_b',80));
+    teBubbleBgColor.value=rgbToHex(getCtrlValue('bubble_bg_r',255),getCtrlValue('bubble_bg_g',255),getCtrlValue('bubble_bg_b',255));
+    teInvertBgColor.value=rgbToHex(getCtrlValue('invert_bg_r',0),getCtrlValue('invert_bg_g',255),getCtrlValue('invert_bg_b',255));
+    teBubbleIrr.value=getCtrlValue('bubble_irregularity',45);
+    teBubbleMode.value=getCtrlValue('bubble_mode','speech');
+    teThoughtCount.value=getCtrlValue('thought_count',4);
+    teOpacity.value=getCtrlValue('opacity',100);
+    const firstImg=previewStrip.querySelector('img');
+    if(firstImg) teImg.src=firstImg.src;
+    const fallbackQueued=queue.length?queue[0].file:null;
+    teCurrentFile=(teFile.files&&teFile.files[0])?teFile.files[0]:fallbackQueued;
+    syncPreview();
+    teOverlay.classList.add('visible');
+    queueEditorRender();
+  }
+  let drag=false,resize=false,dx=0,dy=0,startW=0,startH=0,startSize=0,startX=0,startY=0;
+  let dragTip=false;
+  teTextBox.addEventListener('mousedown',e=>{
+    if(e.target===teResize) return;
+    drag=true;
+    const r=teTextBox.getBoundingClientRect();
+    dx=e.clientX-r.left; dy=e.clientY-r.top;
+  });
+  teResize.addEventListener('mousedown',e=>{
+    e.stopPropagation();
+    resize=true;
+    const r=teTextBox.getBoundingClientRect();
+    startW=r.width; startH=r.height; startX=e.clientX; startY=e.clientY;
+    startSize=Number(teSize.value)||80;
+  });
+  teBubbleTip.addEventListener('mousedown',e=>{
+    e.stopPropagation();
+    dragTip=true;
+  });
+  window.addEventListener('mousemove',e=>{
+    if(!teOverlay.classList.contains('visible')) return;
+    if(dragTip){
+      const wrap=teTextBox.parentElement.getBoundingClientRect();
+      const imgScale=((teImg.clientWidth||1)/(teImg.naturalWidth||teImg.clientWidth||1));
+      const px=(e.clientX-wrap.left)/Math.max(imgScale,0.0001);
+      const py=(e.clientY-wrap.top)/Math.max(imgScale,0.0001);
+      setCtrlValue('bubble_point_x',Math.round(px));
+      setCtrlValue('bubble_point_y',Math.round(py));
+      syncPreview();
+      queueEditorRender();
+      return;
+    }
+    if(drag){
+      const wrap=teTextBox.parentElement.getBoundingClientRect();
+      const imgScale=((teImg.clientWidth||1)/(teImg.naturalWidth||teImg.clientWidth||1));
+      const nx=(e.clientX-wrap.left-dx)/Math.max(imgScale,0.0001);
+      const ny=(e.clientY-wrap.top-dy)/Math.max(imgScale,0.0001);
+      teX.value=Math.round(nx); teY.value=Math.round(ny);
+      syncPreview();
+      queueEditorRender();
+      return;
+    }
+    if(resize){
+      const dw=e.clientX-startX;
+      const dh=e.clientY-startY;
+      const scale=Math.max(0.2,Math.max((startW+dw)/Math.max(startW,1),(startH+dh)/Math.max(startH,1)));
+      teSize.value=Math.round(startSize*scale);
+      syncPreview();
+      queueEditorRender();
+    }
+  });
+  window.addEventListener('mouseup',()=>{drag=false;resize=false;dragTip=false;});
+  [teText,teFont,teStyle,teSize,teOpacity,teColor,teOutlineColor,teGlowColor,teShadowColor,teBubbleBgColor,teInvertBgColor,teBubbleIrr,teBubbleMode,teThoughtCount,teX,teY].forEach(el=>el.addEventListener('input',()=>{syncPreview();queueEditorRender();}));
+  teFile.addEventListener('change',()=>{
+    const f=teFile.files&&teFile.files[0]; if(!f) return;
+    teCurrentFile=f;
+    teImg.src=URL.createObjectURL(f);
+    queueEditorRender();
+  });
+  teClose.addEventListener('click',()=>teOverlay.classList.remove('visible'));
+  teApply.addEventListener('click',()=>{
+    setCtrlValue('text',teText.value);
+    setCtrlValue('font',teFont.value);
+    setCtrlValue('style',teStyle.value);
+    setCtrlValue('font_size',teSize.value);
+    setCtrlValue('position_x',teX.value);
+    setCtrlValue('position_y',teY.value);
+    const [r,g,b]=hexToRgb(teColor.value);
+    setCtrlValue('color_r',r); setCtrlValue('color_g',g); setCtrlValue('color_b',b);
+    const [or,og,ob]=hexToRgb(teOutlineColor.value);
+    const [gr,gg,gb]=hexToRgb(teGlowColor.value);
+    const [sr,sg,sb]=hexToRgb(teShadowColor.value);
+    const [br,bg,bb]=hexToRgb(teBubbleBgColor.value);
+    const [ir,ig,ib]=hexToRgb(teInvertBgColor.value);
+    setCtrlValue('outline_r',or); setCtrlValue('outline_g',og); setCtrlValue('outline_b',ob);
+    setCtrlValue('glow_r',gr); setCtrlValue('glow_g',gg); setCtrlValue('glow_b',gb);
+    setCtrlValue('shadow_r',sr); setCtrlValue('shadow_g',sg); setCtrlValue('shadow_b',sb);
+    setCtrlValue('bubble_bg_r',br); setCtrlValue('bubble_bg_g',bg); setCtrlValue('bubble_bg_b',bb);
+    setCtrlValue('invert_bg_r',ir); setCtrlValue('invert_bg_g',ig); setCtrlValue('invert_bg_b',ib);
+    setCtrlValue('bubble_irregularity',teBubbleIrr.value);
+    setCtrlValue('bubble_mode',teBubbleMode.value);
+    setCtrlValue('thought_count',teThoughtCount.value);
+    setCtrlValue('opacity',teOpacity.value);
+    teOverlay.classList.remove('visible');
+    const editorFile=(teFile.files&&teFile.files[0])?teFile.files[0]:null;
+    const fallbackQueued=queue.length?queue[0].file:null;
+    const sourceFile=editorFile||fallbackQueued;
+    if(!sourceFile){
+      setStatus('Wybierz obraz w edytorze (lub dodaj go do kolejki), żeby wyrenderować efekt','orange');
+      return;
+    }
+    setStatus('Renderuję efekt z edytora...','orange');
+    uploadFile(sourceFile)
+      .then(result=>{
+        addPreview(sourceFile,result.blob,result.b64,result.name);
+        setStatus('✅ Gotowe!','green');
+      })
+      .catch(err=>{
+        setStatus('Błąd renderu: '+(err.message||'unknown'),'red');
+      });
+  });
+  textEditorOpenBtn.addEventListener('click',openTextEditor);
 
   // ── Licznik ───────────────────────────────────────────────────────────────
   fetch('/counter').then(r=>r.json()).then(d=>cntNum.textContent=d.count).catch(()=>{});

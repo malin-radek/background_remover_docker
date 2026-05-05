@@ -108,6 +108,28 @@ METADATA = {
             "step": 1,
             "default": 500,
         },
+        "bubble_irregularity": {
+            "type": "slider",
+            "label": "Dymek: nieregularność (0-100)",
+            "min": 0,
+            "max": 100,
+            "step": 1,
+            "default": 45,
+        },
+        "bubble_mode": {
+            "type": "select",
+            "label": "Dymek: tryb",
+            "choices": {"speech": "Mowa", "thought": "Myśl"},
+            "default": "speech",
+        },
+        "thought_count": {
+            "type": "slider",
+            "label": "Myśl: liczba elips",
+            "min": 2,
+            "max": 8,
+            "step": 1,
+            "default": 4,
+        },
         "rotation": {
             "type": "slider",
             "label": "Rotacja (stopnie)",
@@ -140,6 +162,21 @@ METADATA = {
             "step": 1,
             "default": 0,
         },
+        "outline_r": {"type": "slider", "label": "Obwódka R", "min": 0, "max": 255, "step": 1, "default": 0},
+        "outline_g": {"type": "slider", "label": "Obwódka G", "min": 0, "max": 255, "step": 1, "default": 0},
+        "outline_b": {"type": "slider", "label": "Obwódka B", "min": 0, "max": 255, "step": 1, "default": 0},
+        "glow_r": {"type": "slider", "label": "Poświata R", "min": 0, "max": 255, "step": 1, "default": 255},
+        "glow_g": {"type": "slider", "label": "Poświata G", "min": 0, "max": 255, "step": 1, "default": 255},
+        "glow_b": {"type": "slider", "label": "Poświata B", "min": 0, "max": 255, "step": 1, "default": 0},
+        "shadow_r": {"type": "slider", "label": "Cień R", "min": 0, "max": 255, "step": 1, "default": 80},
+        "shadow_g": {"type": "slider", "label": "Cień G", "min": 0, "max": 255, "step": 1, "default": 80},
+        "shadow_b": {"type": "slider", "label": "Cień B", "min": 0, "max": 255, "step": 1, "default": 80},
+        "bubble_bg_r": {"type": "slider", "label": "Dymek tło R", "min": 0, "max": 255, "step": 1, "default": 255},
+        "bubble_bg_g": {"type": "slider", "label": "Dymek tło G", "min": 0, "max": 255, "step": 1, "default": 255},
+        "bubble_bg_b": {"type": "slider", "label": "Dymek tło B", "min": 0, "max": 255, "step": 1, "default": 255},
+        "invert_bg_r": {"type": "slider", "label": "Invert tło R", "min": 0, "max": 255, "step": 1, "default": 0},
+        "invert_bg_g": {"type": "slider", "label": "Invert tło G", "min": 0, "max": 255, "step": 1, "default": 255},
+        "invert_bg_b": {"type": "slider", "label": "Invert tło B", "min": 0, "max": 255, "step": 1, "default": 255},
         "opacity": {
             "type": "slider",
             "label": "Przezroczystość",
@@ -207,14 +244,27 @@ def _get_font(font_name: str, size: int) -> ImageFont.FreeTypeFont:
     
     if font_name not in _FONT_CACHE:
         print(f"[TEXT_ON_IMAGE] Czcionka '{font_name}' nie w cache, szukam fallback...")
+        # Dopasowanie po nazwie bez rozszerzenia (.ttf/.otf)
+        base = font_name.replace(".ttf", "").replace(".otf", "").lower()
+        for fname, fpath in _FONT_CACHE.items():
+            nbase = fname.replace(".ttf", "").replace(".otf", "").lower()
+            if nbase == base:
+                _FONT_CACHE[font_name] = fpath
+                break
         # Fallback na DejaVu
-        for path in glob.glob("/app/fonts/**/DejaVuSans-Bold.ttf", recursive=True):
-            _FONT_CACHE[font_name] = path
-            break
-        if font_name not in _FONT_CACHE:
-            for path in glob.glob("./fonts/**/DejaVuSans-Bold.ttf", recursive=True):
+        for pattern in ("/app/fonts/**/DejaVuSans-Bold.ttf", "/app/fonts/**/DejaVuSans-Bold.otf"):
+            for path in glob.glob(pattern, recursive=True):
                 _FONT_CACHE[font_name] = path
                 break
+            if font_name in _FONT_CACHE:
+                break
+        if font_name not in _FONT_CACHE:
+            for pattern in ("./fonts/**/DejaVuSans-Bold.ttf", "./fonts/**/DejaVuSans-Bold.otf"):
+                for path in glob.glob(pattern, recursive=True):
+                    _FONT_CACHE[font_name] = path
+                    break
+                if font_name in _FONT_CACHE:
+                    break
     
     path = _FONT_CACHE.get(font_name)
     if not path or not os.path.exists(path):
@@ -245,17 +295,19 @@ def _render_logo(img: Image.Image, text: str, font: ImageFont.FreeTypeFont,
     
     x, y = int(pos[0]), int(pos[1])
     
-    # Shadow (szary, 6px poniżej)
+    shadow = globals().get("_FX_SHADOW", (80, 80, 80))
+    outline = globals().get("_FX_OUTLINE", (0, 0, 0))
+    # Shadow
     for sx in range(-6, 7):
         for sy in range(-6, 7):
             if sx*sx + sy*sy <= 36:
-                draw.text((x+sx, y+6+sy), text, font=font, fill=(80, 80, 80, alpha//2))
+                draw.text((x+sx, y+6+sy), text, font=font, fill=(*shadow, alpha//2))
     
     # Outline (czarny, 4px)
     for ox in range(-4, 5):
         for oy in range(-4, 5):
             if ox*ox + oy*oy <= 16:
-                draw.text((x+ox, y+oy), text, font=font, fill=(0, 0, 0, alpha))
+                draw.text((x+ox, y+oy), text, font=font, fill=(*outline, alpha))
     
     # Tekst główny
     draw.text((x, y), text, font=font, fill=(*color, alpha))
@@ -278,48 +330,98 @@ def _render_speech_bubble(img: Image.Image, text: str, font: ImageFont.FreeTypeF
     text_width = bbox[2] - bbox[0]
     text_height = bbox[3] - bbox[1]
     
-    # Bubble bounds (z marginessem)
+    # Bubble bounds (wewnętrzny bezpieczny obszar dla tekstu)
     margin = 20
+    outline = globals().get("_FX_OUTLINE", (0, 0, 0))
+    bubble_bg = globals().get("_FX_BUBBLE_BG", (255, 255, 255))
+    irr = max(0, min(100, int(globals().get("_FX_BUBBLE_IRR", 45))))
+    amp = (irr / 100.0) * 0.40
     bubble_x1 = x - margin
     bubble_y1 = y - margin
     bubble_x2 = x + text_width + margin
     bubble_y2 = y + text_height + margin
+
+    # Chmurka: 0 => rounded rect, >0 => coraz bardziej nieregularna
+    if irr == 0:
+        draw.rounded_rectangle(
+            [bubble_x1, bubble_y1, bubble_x2, bubble_y2],
+            radius=max(12, int(min(text_width, text_height) * 0.35)),
+            fill=(*bubble_bg, int(alpha * 0.95)),
+            outline=(*outline, alpha),
+            width=3
+        )
+    else:
+        # Nierówny kontur TYLKO na zewnątrz (bez "dolin" do środka).
+        spikes = 18
+        cx = (bubble_x1 + bubble_x2) / 2.0
+        cy = (bubble_y1 + bubble_y2) / 2.0
+        rx = (bubble_x2 - bubble_x1) / 2.0
+        ry = (bubble_y2 - bubble_y1) / 2.0
+        pts = []
+        for i in range(spikes * 2):
+            a = (2 * math.pi * i) / (spikes * 2)
+            # Minimum zawsze 1.0 => żadnego wchodzenia do środka
+            base = 1.0 + (amp if i % 2 == 1 else amp * 0.15)
+            px = int(cx + math.cos(a) * rx * base)
+            py = int(cy + math.sin(a) * ry * base)
+            pts.append((px, py))
+        draw.polygon(pts, fill=(*bubble_bg, int(alpha * 0.95)), outline=(*outline, alpha))
     
-    # Zaokrąglony prostokąt (białe tło z czarnym obrysum)
-    draw.rounded_rectangle(
-        [bubble_x1, bubble_y1, bubble_x2, bubble_y2],
-        radius=20,
-        fill=(255, 255, 255, int(alpha * 0.95)),
-        outline=(0, 0, 0, alpha),
-        width=3
-    )
+    bubble_mode = globals().get("_FX_BUBBLE_MODE", "speech")
+    thought_count = max(2, min(8, int(globals().get("_FX_THOUGHT_COUNT", 4))))
+    # Wskaźnik dymka: mowa (dziubek) lub myśl (malejące elipsy)
+    ccx = (bubble_x1 + bubble_x2) / 2.0
+    ccy = (bubble_y1 + bubble_y2) / 2.0
+    vx = bx - ccx
+    vy = by - ccy
+    vlen = math.hypot(vx, vy) or 1.0
+    ux, uy = vx / vlen, vy / vlen
+
+    rx = max(1.0, (bubble_x2 - bubble_x1) / 2.0)
+    ry = max(1.0, (bubble_y2 - bubble_y1) / 2.0)
+    # Punkt wyjścia na obrysie elipsy obszaru dymka
+    t = 1.0 / math.sqrt((ux * ux) / (rx * rx) + (uy * uy) / (ry * ry))
+    sx = ccx + ux * t
+    sy = ccy + uy * t
+
+    # Szerokość podstawy dziubka zależna od odległości
+    dist_to_tip = math.hypot(bx - sx, by - sy)
+    base_half = max(8.0, min(24.0, dist_to_tip * 0.18))
+    nx, ny = -uy, ux  # wektor prostopadły
+    p1 = (sx + nx * base_half, sy + ny * base_half)
+    p2 = (sx - nx * base_half, sy - ny * base_half)
+    p3 = (float(bx), float(by))  # dokładnie punkt kontrolny
+
+    if bubble_mode == "thought":
+        for i in range(1, thought_count + 1):
+            t2 = i / (thought_count + 1)
+            ex = sx + (bx - sx) * t2
+            ey = sy + (by - sy) * t2
+            # Bardziej "elisowate" bąbelki myśli: poziomo wydłużone + malejące ku punktowi
+            rx_e = max(5.0, 20.0 * (1 - t2) + 5.0)
+            ry_e = max(3.0, rx_e * 0.58)
+            bubble_layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+            bubble_draw = ImageDraw.Draw(bubble_layer)
+            bubble_draw.ellipse(
+                [int(ex - rx_e), int(ey - ry_e), int(ex + rx_e), int(ey + ry_e)],
+                fill=(*bubble_bg, int(alpha * 0.95)),
+                outline=(*outline, alpha),
+                width=2
+            )
+            # Obrót zgodnie z kierunkiem chmurka -> punkt kontrolny
+            angle = math.degrees(math.atan2(by - sy, bx - sx))
+            bubble_layer = bubble_layer.rotate(angle, center=(ex, ey), resample=Image.BICUBIC)
+            txt_layer = Image.alpha_composite(txt_layer, bubble_layer)
+    else:
+        draw.polygon([(int(p1[0]), int(p1[1])), (int(p2[0]), int(p2[1])), (int(p3[0]), int(p3[1]))],
+                     fill=(*bubble_bg, int(alpha * 0.95)))
+        draw.line([(int(p1[0]), int(p1[1])), (int(p3[0]), int(p3[1]))], fill=(*outline, alpha), width=3)
+        draw.line([(int(p2[0]), int(p2[1])), (int(p3[0]), int(p3[1]))], fill=(*outline, alpha), width=3)
     
-    # Wskaźnik (trójkąt do punktu)
-    cx = (bubble_x1 + bubble_x2) // 2
-    cy = bubble_y2
-    
-    # Kąt do punktu bubble_point
-    dx = bx - cx
-    dy = by - cy
-    dist = math.sqrt(dx*dx + dy*dy)
-    if dist > 0:
-        dx /= dist
-        dy /= dist
-    
-    # Trójkąt
-    pointer_len = 30
-    px1 = cx + dy * 15
-    py1 = cy - dx * 15
-    px2 = cx - dy * 15
-    py2 = cy + dx * 15
-    px3 = cx + dx * pointer_len
-    py3 = cy + dy * pointer_len
-    
-    draw.polygon([(int(px1), int(py1)), (int(px2), int(py2)), (int(px3), int(py3))],
-                 fill=(255, 255, 255, int(alpha * 0.95)), outline=(0, 0, 0, alpha))
-    
-    # Tekst
-    draw.text((x, y), text, font=font, fill=(*color, alpha))
+    # Tekst bardziej centralnie (lekko wyżej niż matematyczny środek)
+    tx = int((bubble_x1 + bubble_x2 - text_width) / 2)
+    ty = int((bubble_y1 + bubble_y2 - text_height) / 2 - max(6, text_height * 0.08))
+    draw.text((tx, ty), text, font=font, fill=(*color, alpha))
     
     return Image.alpha_composite(img.convert("RGBA"), txt_layer).convert("RGB")
 
@@ -332,15 +434,16 @@ def _render_comic(img: Image.Image, text: str, font: ImageFont.FreeTypeFont,
     draw = ImageDraw.Draw(txt_layer)
     
     x, y = int(pos[0]), int(pos[1])
+    outline = globals().get("_FX_OUTLINE", (0, 0, 0))
     
     # Grube outline
     for ox in range(-5, 6):
         for oy in range(-5, 6):
             if ox*ox + oy*oy <= 25:
-                draw.text((x+ox, y+oy), text, font=font, fill=(0, 0, 0, alpha))
+                draw.text((x+ox, y+oy), text, font=font, fill=(*outline, alpha))
     
     # Białe wnętrze
-    draw.text((x, y), text, font=font, fill=(255, 255, 255, alpha))
+    draw.text((x, y), text, font=font, fill=(*color, alpha))
     
     return Image.alpha_composite(img.convert("RGBA"), txt_layer).convert("RGB")
 
@@ -353,10 +456,11 @@ def _render_neon(img: Image.Image, text: str, font: ImageFont.FreeTypeFont,
     draw = ImageDraw.Draw(txt_layer)
     
     x, y = int(pos[0]), int(pos[1])
+    glow = globals().get("_FX_GLOW", color)
     
     # Tekst z glow (wielokrotny blur)
     for i in range(5, 0, -1):
-        glow_color = tuple(int(c * (1 - i/5)) for c in color)
+        glow_color = tuple(int(c * (1 - i/5)) for c in glow)
         txt_tmp = Image.new("RGBA", (W, H), (0, 0, 0, 0))
         draw_tmp = ImageDraw.Draw(txt_tmp)
         draw_tmp.text((x, y), text, font=font, fill=(*glow_color, alpha // (6-i)))
@@ -384,7 +488,7 @@ def _render_invert(img: Image.Image, text: str, font: ImageFont.FreeTypeFont,
     text_height = bbox[3] - bbox[1]
     
     # Tło (opaque, odwrotny kolor)
-    inv_color = (255-color[0], 255-color[1], 255-color[2])
+    inv_color = globals().get("_FX_INVERT_BG", (255-color[0], 255-color[1], 255-color[2]))
     draw.rectangle([x-5, y-5, x+text_width+5, y+text_height+5],
                    fill=(*inv_color, alpha))
     
@@ -516,12 +620,13 @@ def _render_shadow_deep(img: Image.Image, text: str, font: ImageFont.FreeTypeFon
     draw = ImageDraw.Draw(txt_layer)
     
     x, y = int(pos[0]), int(pos[1])
+    shadow = globals().get("_FX_SHADOW", (80, 80, 80))
     
     # Wielowarstwowe cienie
     for i in range(15, 0, -1):
-        shade = int(150 * (1 - i / 15))
+        shade = tuple(int(ch * (1 - i / 15)) for ch in shadow)
         draw.text((x + i//2, y + i), text, font=font, 
-                 fill=(shade, shade, shade, alpha // 2))
+                 fill=(*shade, alpha // 2))
     
     # Tekst
     draw.text((x, y), text, font=font, fill=(*color, alpha))
@@ -587,14 +692,15 @@ def _render_electric_spark(img: Image.Image, text: str, font: ImageFont.FreeType
     draw = ImageDraw.Draw(txt_layer)
     
     x, y = int(pos[0]), int(pos[1])
+    glow = globals().get("_FX_GLOW", (255, 255, 0))
     
     # Żółty glow
     for i in range(8, 0, -1):
         glow_alpha = int(alpha * (1 - i / 8) / 2)
-        draw.text((x, y), text, font=font, fill=(255, 255, 0, glow_alpha))
+        draw.text((x, y), text, font=font, fill=(*glow, glow_alpha))
         txt_tmp = Image.new("RGBA", (W, H), (0, 0, 0, 0))
         draw_tmp = ImageDraw.Draw(txt_tmp)
-        draw_tmp.text((x, y), text, font=font, fill=(255, 255, 0, glow_alpha))
+        draw_tmp.text((x, y), text, font=font, fill=(*glow, glow_alpha))
         txt_tmp = txt_tmp.filter(ImageFilter.GaussianBlur(radius=i))
         txt_layer = Image.alpha_composite(txt_layer, txt_tmp)
     
@@ -684,11 +790,29 @@ def process(image_bytes: bytes, options: dict) -> bytes:
     scale_z = float(options.get("position_z", METADATA["options"]["position_z"]["default"]))
     bubble_px = int(options.get("bubble_point_x", METADATA["options"]["bubble_point_x"]["default"]))
     bubble_py = int(options.get("bubble_point_y", METADATA["options"]["bubble_point_y"]["default"]))
+    bubble_irr = int(options.get("bubble_irregularity", METADATA["options"]["bubble_irregularity"]["default"]))
+    bubble_mode = options.get("bubble_mode", METADATA["options"]["bubble_mode"]["default"])
+    thought_count = int(options.get("thought_count", METADATA["options"]["thought_count"]["default"]))
     rotation = int(options.get("rotation", METADATA["options"]["rotation"]["default"]))
     color_r = int(options.get("color_r", METADATA["options"]["color_r"]["default"]))
     color_g = int(options.get("color_g", METADATA["options"]["color_g"]["default"]))
     color_b = int(options.get("color_b", METADATA["options"]["color_b"]["default"]))
     opacity = int(options.get("opacity", METADATA["options"]["opacity"]["default"]))
+    outline_r = int(options.get("outline_r", METADATA["options"]["outline_r"]["default"]))
+    outline_g = int(options.get("outline_g", METADATA["options"]["outline_g"]["default"]))
+    outline_b = int(options.get("outline_b", METADATA["options"]["outline_b"]["default"]))
+    glow_r = int(options.get("glow_r", METADATA["options"]["glow_r"]["default"]))
+    glow_g = int(options.get("glow_g", METADATA["options"]["glow_g"]["default"]))
+    glow_b = int(options.get("glow_b", METADATA["options"]["glow_b"]["default"]))
+    shadow_r = int(options.get("shadow_r", METADATA["options"]["shadow_r"]["default"]))
+    shadow_g = int(options.get("shadow_g", METADATA["options"]["shadow_g"]["default"]))
+    shadow_b = int(options.get("shadow_b", METADATA["options"]["shadow_b"]["default"]))
+    bubble_bg_r = int(options.get("bubble_bg_r", METADATA["options"]["bubble_bg_r"]["default"]))
+    bubble_bg_g = int(options.get("bubble_bg_g", METADATA["options"]["bubble_bg_g"]["default"]))
+    bubble_bg_b = int(options.get("bubble_bg_b", METADATA["options"]["bubble_bg_b"]["default"]))
+    invert_bg_r = int(options.get("invert_bg_r", METADATA["options"]["invert_bg_r"]["default"]))
+    invert_bg_g = int(options.get("invert_bg_g", METADATA["options"]["invert_bg_g"]["default"]))
+    invert_bg_b = int(options.get("invert_bg_b", METADATA["options"]["invert_bg_b"]["default"]))
     
     # Załaduj obraz
     img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
@@ -704,6 +828,15 @@ def process(image_bytes: bytes, options: dict) -> bytes:
     
     # Kolor
     color = (color_r, color_g, color_b)
+    global _FX_OUTLINE, _FX_GLOW, _FX_SHADOW, _FX_BUBBLE_BG, _FX_INVERT_BG, _FX_BUBBLE_IRR, _FX_BUBBLE_MODE, _FX_THOUGHT_COUNT
+    _FX_OUTLINE = (outline_r, outline_g, outline_b)
+    _FX_GLOW = (glow_r, glow_g, glow_b)
+    _FX_SHADOW = (shadow_r, shadow_g, shadow_b)
+    _FX_BUBBLE_BG = (bubble_bg_r, bubble_bg_g, bubble_bg_b)
+    _FX_INVERT_BG = (invert_bg_r, invert_bg_g, invert_bg_b)
+    _FX_BUBBLE_IRR = bubble_irr
+    _FX_BUBBLE_MODE = bubble_mode
+    _FX_THOUGHT_COUNT = thought_count
     alpha = int(opacity * 255 // 100)
     
     # Renderer
@@ -723,3 +856,7 @@ def process(image_bytes: bytes, options: dict) -> bytes:
     buf = io.BytesIO()
     result_img.save(buf, format="PNG")
     return buf.getvalue()
+    outline = globals().get("_FX_OUTLINE", (0, 0, 0))
+    glow = globals().get("_FX_GLOW", color)
+    shadow = globals().get("_FX_SHADOW", (0, 0, 0))
+    glow = globals().get("_FX_GLOW", (255, 255, 0))

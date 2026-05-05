@@ -1,11 +1,12 @@
 version: "3.8"
 services:
   removeBackground:
-    image: background-remover:latest
-    container_name: removeBackground
+    image: backgroundremover-api:latest
     hostname: removeBackground
+    labels:
+      - "homepage=http://truenas.local:5001"
     ports:
-      - "5000:5000"
+      - "5001:5000"
     environment:
       - DEFAULT_MODEL=u2net
       - MAX_UPLOAD_MB=100
@@ -17,6 +18,7 @@ services:
       - rembg_models:/app/models
       - ./plugins:/app/plugins:ro
       - ./templates:/app/templates:ro
+      - ./fonts:/app/fonts:ro
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/" ]
