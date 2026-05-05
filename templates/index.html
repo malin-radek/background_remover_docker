@@ -320,6 +320,29 @@
         grp.appendChild(lbl);
         grp.appendChild(ctrl);
         grp.appendChild(valSpan);
+      } else if(opt.type==='textarea'){
+        grp.style.flexDirection='column';
+        grp.style.alignItems='stretch';
+        grp.style.minWidth='260px';
+        grp.style.flex='1 1 420px';
+        const lbl=document.createElement('label');lbl.textContent=opt.label+':';
+        ctrl=document.createElement('textarea');
+        ctrl.id='opt-'+key;
+        ctrl.dataset.key=key;
+        ctrl.value=opt.default||'';
+        ctrl.rows=Number(opt.rows)||5;
+        ctrl.style.width='100%';
+        ctrl.style.minHeight='110px';
+        ctrl.style.resize='vertical';
+        ctrl.style.background='#333';
+        ctrl.style.color='var(--white)';
+        ctrl.style.border='1px solid var(--border)';
+        ctrl.style.borderRadius='3px';
+        ctrl.style.padding='8px';
+        ctrl.style.fontFamily="'JetBrains Mono',monospace";
+        ctrl.style.fontSize='.8rem';
+        grp.appendChild(lbl);
+        grp.appendChild(ctrl);
       } else {
         const lbl=document.createElement('label');lbl.textContent=opt.label+':';
         ctrl=document.createElement('select');
@@ -342,7 +365,7 @@
 
   function getOptions(){
     const opts={};
-    pluginOptionsEl.querySelectorAll('select, input[type="range"], input[type="checkbox"]').forEach(s=>{
+    pluginOptionsEl.querySelectorAll('select, textarea, input[type="range"], input[type="checkbox"]').forEach(s=>{
       if(s.type==='checkbox'){
         opts[s.dataset.key]=s.checked ? 'true' : 'false';
       } else {
