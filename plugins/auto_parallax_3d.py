@@ -116,6 +116,26 @@ METADATA = {
             "label": "Liczba klatek",
             "choices": {"12": "Bardzo szybko", "24": "Standard", "48": "Super płynnie"},
             "default": "24",
+        },
+        "zoom_range": {
+            "type": "select",
+            "label": "Zoom in/out",
+            "choices": {
+                "0": "0% (bez zoomu)",
+                "2": "2% (lekki)",
+                "5": "5% (średni)",
+                "10": "10% (mocny)"
+            },
+            "default": "2",
+        },
+        "zoom_target": {
+            "type": "select",
+            "label": "Zoom obejmuje",
+            "choices": {
+                "all": "Cały kadr",
+                "people": "Tylko osoby"
+            },
+            "default": "all",
         }
     },
 }
@@ -226,6 +246,8 @@ def process(image_bytes: bytes, options: dict) -> bytes:
     output_size = int(options.get("output_size", 1024))
     intensity = int(options.get("intensity", 5))
     num_frames = int(options.get("steps", 24))
+    zoom_range_pct = float(options.get("zoom_range", 2))
+    zoom_target = options.get("zoom_target", "all")
     outline_thickness = int(options.get("outline_thickness", 3))
     outline_color = options.get("outline_color", "black")
     shadow_strength = int(options.get("shadow_strength", 2))
@@ -360,8 +382,29 @@ def process(image_bytes: bytes, options: dict) -> bytes:
         if len(processed_layers) > 0:
             layer_speed = intensity * len(processed_layers) / max(1, len(processed_layers))
             layer_offset = int(offset_factor * layer_speed * 3)
-            frame.paste(processed_layers[0], (layer_offset, 0), processed_layers[0])
-        
+            fg_layer = processed_layers[0]
+            if zoom_range_pct > 0 and zoom_target == "people":
+                zoom_amp = zoom_range_pct / 100.0
+                zoom = 1.0 + zoom_amp * (0.5 - 0.5 * np.cos(t * 2 * np.pi))
+                zw = max(1, int(W * zoom))
+                zh = max(1, int(H * zoom))
+                fg_zoomed = fg_layer.resize((zw, zh), Image.Resampling.LANCZOS)
+                x0 = (zw - W) // 2
+                y0 = (zh - H) // 2
+                fg_layer = fg_zoomed.crop((x0, y0, x0 + W, y0 + H))
+            frame.paste(fg_layer, (layer_offset, 0), fg_layer)
+
+        # Globalny zoom in/out (1.0 -> 1+Z -> 1.0)
+        if zoom_range_pct > 0 and zoom_target == "all":
+            zoom_amp = zoom_range_pct / 100.0
+            zoom = 1.0 + zoom_amp * (0.5 - 0.5 * np.cos(t * 2 * np.pi))
+            zw = max(1, int(W * zoom))
+            zh = max(1, int(H * zoom))
+            zoomed = frame.resize((zw, zh), Image.Resampling.LANCZOS)
+            x0 = (zw - W) // 2
+            y0 = (zh - H) // 2
+            frame = zoomed.crop((x0, y0, x0 + W, y0 + H))
+
         # Konwertuj na RGB
         frame_rgb = Image.new("RGB", (W, H), (0, 0, 0))
         frame_rgb.paste(frame, (0, 0), frame)

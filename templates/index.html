@@ -46,13 +46,14 @@
   select{background:#333;color:var(--white);border:1px solid var(--border);border-radius:3px;padding:4px 8px;font-family:'JetBrains Mono',monospace;font-size:.8rem;cursor:pointer;outline:none}
   select:focus{border-color:var(--blue)}
 
-  #drop-zone{border:2px solid var(--border);border-radius:4px;background:var(--surface);padding:36px 20px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s;user-select:none}
+  #drop-zone{border:2px solid var(--border);border-radius:4px;background:var(--surface);padding:28px 16px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s;user-select:none;display:none}
   #drop-zone:hover,#drop-zone.drag-over{border-color:var(--green);background:#333}
   #drop-zone.drag-over{border-style:dashed}
   #drop-zone .dz-icon{font-size:2.2rem;display:block;margin-bottom:8px}
   #drop-zone .dz-label{font-family:'Syne',sans-serif;font-size:1rem;font-weight:700;color:var(--muted);line-height:1.6;transition:color .15s}
   #drop-zone .dz-hint{font-size:.72rem;font-weight:400;color:var(--muted)}
   #drop-zone:hover .dz-label,#drop-zone.drag-over .dz-label{color:var(--green)}
+  #btn-pick-image{padding:10px 14px;background:#2f2f2f;color:var(--white);border:1px solid #555;border-radius:4px;cursor:pointer;font-weight:700}
 
   .queue-label{font-size:.85rem;font-weight:700;color:var(--green)}
   #file-list{background:var(--surface);border:1px solid var(--border);border-radius:4px;min-height:60px;max-height:160px;overflow-y:auto}
@@ -125,6 +126,22 @@
   .te-color-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
   .te-row input,.te-row select,.te-row textarea{background:#333;color:#fff;border:1px solid #555;border-radius:4px;padding:6px;font-family:'JetBrains Mono',monospace}
   .te-actions{display:flex;gap:8px}
+  #layers-panel{margin-top:10px;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px;display:flex;flex-direction:column;gap:8px}
+  #layers-toolbar{display:flex;gap:8px;flex-wrap:wrap}
+  #layers-list{display:flex;flex-direction:column;gap:6px}
+  .layer-row{display:flex;align-items:center;gap:8px;font-size:.75rem;background:#2a2a2a;border:1px solid #444;border-radius:4px;padding:6px}
+  .layer-row.active{border-color:var(--green);background:#1f2b1f}
+  .layer-name{flex:1}
+  .layer-progress{width:90px;height:6px;background:#1b1b1b;border:1px solid #444;border-radius:999px;overflow:hidden}
+  .layer-progress > i{display:block;height:100%;width:0%;background:var(--green);transition:width .2s}
+  .layer-progress.run > i{width:100%;animation:lp 1s linear infinite}
+  @keyframes lp{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+  #focus-toggle{display:flex;gap:6px;justify-content:flex-end;margin-bottom:8px}
+  #focus-view{margin-top:10px;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px}
+  #focus-view img{width:100%;height:auto;max-height:70vh;object-fit:contain;border-radius:4px;background:#111}
+  #focus-duo{display:none;grid-template-columns:1fr 1fr;gap:10px}
+  .focus-col{display:flex;flex-direction:column;gap:6px}
+  .focus-col span{font-size:.72rem;color:var(--muted);font-weight:700}
 </style>
 </head>
 <body>
@@ -174,7 +191,9 @@
   <!-- Separate file input ONLY for inpainting (hidden) -->
   <input type="file" id="inpaint-file-input" style="display: none;" accept=".jpg,.jpeg,.png,.bmp,.gif,.tiff,.webp">
 
-  <!-- Drop zone (hidden for plugins with dropzone: false) -->
+  <button id="btn-pick-image">📂 Wybierz zdjęcia</button>
+
+  <!-- Drop zone (hidden by default, shown on drag) -->
   <div id="drop-zone">
     <span class="dz-icon">📂</span>
     <span class="dz-label">PRZECIĄGNIJ ZDJĘCIA TUTAJ<br>lub kliknij aby wybrać</span><br>
@@ -192,6 +211,30 @@
   <div class="btn-row">
     <button id="btn-clear">🗑 WYCZYŚĆ</button>
     <button id="text-editor-open">📝 EDYTOR TEKSTU</button>
+  </div>
+  <div id="layers-panel">
+    <div id="layers-toolbar">
+      <button id="btn-layer-add">➕ Add</button>
+      <button id="btn-layer-stop">⏹ STOP</button>
+      <button id="btn-layer-reset">♻️ Reset</button>
+      <button id="btn-layer-save">💾 Zapisz</button>
+      <select id="layer-preset-select" style="min-width:190px"></select>
+      <button id="btn-layer-apply">📥 Zastosuj</button>
+    </div>
+    <div id="layers-list"></div>
+  </div>
+  <div id="focus-toggle">
+    <button id="btn-focus-original">Oryginał</button>
+    <button id="btn-focus-result">Wynik</button>
+    <button id="btn-focus-both">Oryginał i wynik</button>
+    <button id="btn-focus-download">⬇️ Pobierz</button>
+  </div>
+  <div id="focus-view" style="display:none">
+    <img id="focus-image" alt="Podgląd duży">
+    <div id="focus-duo">
+      <div class="focus-col"><span>Oryginał</span><img id="focus-image-orig" alt="Oryginał"></div>
+      <div class="focus-col"><span>Wynik</span><img id="focus-image-result" alt="Wynik"></div>
+    </div>
   </div>
   <div id="preview-strip"></div>
 </main>
@@ -273,6 +316,7 @@
         scalingSectionEl=document.getElementById('scaling-section'),
         btnInpaintEditor=document.getElementById('btn-inpaint-editor'),
         inpaintButtonContainer=document.getElementById('inpaint-button-container');
+  const btnPickImage=document.getElementById('btn-pick-image');
   const textEditorOpenBtn=document.getElementById('text-editor-open'),
         teOverlay=document.getElementById('text-editor-overlay'),
         teImg=document.getElementById('te-img'),
@@ -301,6 +345,22 @@
         teApply=document.getElementById('te-apply'),
         teClose=document.getElementById('te-close'),
         teResize=document.getElementById('te-resize');
+  const btnLayerAdd=document.getElementById('btn-layer-add'),
+        btnLayerStop=document.getElementById('btn-layer-stop'),
+        btnLayerReset=document.getElementById('btn-layer-reset'),
+        btnLayerSave=document.getElementById('btn-layer-save'),
+        btnLayerApply=document.getElementById('btn-layer-apply'),
+        layerPresetSelect=document.getElementById('layer-preset-select'),
+        layersList=document.getElementById('layers-list'),
+        btnFocusOriginal=document.getElementById('btn-focus-original'),
+        btnFocusResult=document.getElementById('btn-focus-result'),
+        btnFocusBoth=document.getElementById('btn-focus-both'),
+        btnFocusDownload=document.getElementById('btn-focus-download'),
+        focusView=document.getElementById('focus-view'),
+        focusImage=document.getElementById('focus-image'),
+        focusDuo=document.getElementById('focus-duo'),
+        focusImageOrig=document.getElementById('focus-image-orig'),
+        focusImageResult=document.getElementById('focus-image-result');
   let teCurrentFile=null, teRenderTimer=null, teRenderToken=0;
 
   const ALLOWED=new Set(['image/jpeg','image/png','image/bmp','image/gif','image/tiff','image/webp']);
@@ -320,6 +380,15 @@
 
   let queue=[],processing=false,popupResolve=null;
   let plugins={},activePlugin=null;
+  let baseInputFile=null,lastOutputBlob=null,lastOutputName='result.png';
+  let layers=[],currentLayerEffect=null;
+  let selectedLayerIndex=-1;
+  let activeImageKey=null;
+  const imageProjects=new Map();
+  let focusedMode='result';
+  let lastOutputExt='png',lastOutputAnimated=false;
+  let layerRun={running:false,index:-1,controller:null,cancelled:false};
+  const LAYER_PRESETS_KEY='layer_presets_v1';
 
   // ── Przechowywanie b64 poza DOM ───────────────────────────────────────────
   const b64Store=new Map(); // cardId -> base64 string
@@ -330,6 +399,26 @@
     const resp=await fetch('/plugins');
     plugins=await resp.json();
     renderPluginList();
+    refreshPresetSelect();
+  }
+
+  function getLayerPresets(){
+    try{return JSON.parse(localStorage.getItem(LAYER_PRESETS_KEY)||'{}');}catch(_){return {};}
+  }
+  function setLayerPresets(v){
+    localStorage.setItem(LAYER_PRESETS_KEY,JSON.stringify(v));
+  }
+  function refreshPresetSelect(){
+    const presets=getLayerPresets();
+    layerPresetSelect.innerHTML='';
+    const first=document.createElement('option');
+    first.value=''; first.textContent='-- Preset warstw --';
+    layerPresetSelect.appendChild(first);
+    Object.keys(presets).sort().forEach(name=>{
+      const o=document.createElement('option');
+      o.value=name; o.textContent=name;
+      layerPresetSelect.appendChild(o);
+    });
   }
 
   function renderPluginList(){
@@ -352,8 +441,29 @@
     // Aktywuj domyślny
     if(!activePlugin && ids.length>0) selectPlugin(ids[0]);
   }
+  function _projectForKey(key){
+    if(!key) return null;
+    if(!imageProjects.has(key)){
+      imageProjects.set(key,{layers:[],currentLayerEffect:null,selectedLayerIndex:-1,lastOutputBlob:null,lastOutputName:'result.png',lastOutputExt:'png',lastOutputAnimated:false});
+    }
+    return imageProjects.get(key);
+  }
+  function _syncFromProject(){
+    const p=_projectForKey(activeImageKey);
+    if(!p) return;
+    layers=p.layers; currentLayerEffect=p.currentLayerEffect; selectedLayerIndex=p.selectedLayerIndex;
+    lastOutputBlob=p.lastOutputBlob; lastOutputName=p.lastOutputName; lastOutputExt=p.lastOutputExt; lastOutputAnimated=p.lastOutputAnimated;
+    btnLayerAdd.textContent=(selectedLayerIndex>=0 || currentLayerEffect===activePlugin)?'🔄 Regeneruj':'➕ Add';
+  }
+  function _syncToProject(){
+    const p=_projectForKey(activeImageKey);
+    if(!p) return;
+    p.layers=layers; p.currentLayerEffect=currentLayerEffect; p.selectedLayerIndex=selectedLayerIndex;
+    p.lastOutputBlob=lastOutputBlob; p.lastOutputName=lastOutputName; p.lastOutputExt=lastOutputExt; p.lastOutputAnimated=lastOutputAnimated;
+  }
 
   function selectPlugin(id){
+    const prev=activePlugin;
     activePlugin=id;
     document.querySelectorAll('.plugin-card').forEach(c=>c.classList.toggle('active',c.dataset.id===id));
     const meta=plugins[id];
@@ -365,7 +475,8 @@
     scalingSectionEl.style.display=disableScaling?'none':'flex';
     // Pokaż/ukryj dropzone na podstawie dropzone flag
     const hideDropzone=meta.dropzone===false;
-    dropZone.style.display=hideDropzone?'none':'block';
+    dropZone.style.display='none';
+    btnPickImage.style.display=hideDropzone?'none':'inline-block';
     fileList.style.display=hideDropzone?'none':'block';
     document.querySelector('.progress-bar-bg').style.display=hideDropzone?'none':'block';
     document.querySelector('.queue-label').style.display=hideDropzone?'none':'block';
@@ -378,6 +489,148 @@
     } else {
       teOverlay.classList.remove('visible');
     }
+    if(prev!==id){
+      currentLayerEffect=null;
+      btnLayerAdd.textContent=(selectedLayerIndex>=0)?'🔄 Regeneruj':'➕ Add';
+    }
+  }
+
+  function renderLayersList(){
+    _syncFromProject();
+    layersList.innerHTML='';
+    layers.forEach((l,idx)=>{
+      const row=document.createElement('div');
+      row.draggable=true;
+      row.dataset.idx=String(idx);
+      const isRunning=layerRun.running && layerRun.index===idx;
+      row.className='layer-row'+(isRunning?' active':'');
+      row.innerHTML=`<input type="checkbox" ${l.enabled?'checked':''} data-i="${idx}"><span class="layer-name">#${idx+1} ${plugins[l.plugin]?.name||l.plugin} ${l.enabled?'':'(OFF)'} ${isRunning?'• regeneruję...':''} ${selectedLayerIndex===idx?'• EDYCJA':''}</span><span class="layer-progress ${isRunning?'run':''}"><i></i></span><button data-edit="${idx}">Edytuj</button><button data-del="${idx}">Usuń</button>`;
+      const cb=row.querySelector('input');
+      cb.addEventListener('change',async()=>{l.enabled=cb.checked;await rebuildLayers();});
+      row.querySelector('button[data-edit]').addEventListener('click',()=>{
+        selectedLayerIndex=idx;
+        const layer=layers[idx];
+        if(!layer) return;
+        selectPlugin(layer.plugin);
+        Object.entries(layer.options||{}).forEach(([k,v])=>setCtrlValue(k,v));
+        renderLayersList();
+        setStatus(`Edytujesz warstwę #${idx+1}`,'green');
+        if(layer.plugin==='text_on_image') openTextEditor();
+      });
+      row.addEventListener('dragstart',e=>{e.dataTransfer.setData('text/plain',String(idx));});
+      row.addEventListener('dragover',e=>{e.preventDefault();});
+      row.addEventListener('drop',async e=>{
+        e.preventDefault();
+        const from=Number(e.dataTransfer.getData('text/plain'));
+        const to=idx;
+        if(Number.isNaN(from)||from===to||from<0||from>=layers.length) return;
+        const [moved]=layers.splice(from,1);
+        layers.splice(to,0,moved);
+        currentLayerEffect=null;
+        _syncToProject();
+        btnLayerAdd.textContent='➕ Add';
+        renderLayersList();
+        await rebuildLayers();
+      });
+      row.querySelector('button[data-del]').addEventListener('click',async()=>{
+        if(layerRun.running && layerRun.index===idx && layerRun.controller){
+          layerRun.cancelled=true;
+          layerRun.controller.abort();
+        }
+        layers.splice(idx,1);
+        if(selectedLayerIndex===idx) selectedLayerIndex=-1;
+        else if(selectedLayerIndex>idx) selectedLayerIndex-=1;
+        _syncToProject();
+        if(!layerRun.running) await rebuildLayers();
+        renderLayersList();
+      });
+      layersList.appendChild(row);
+    });
+  }
+  async function refreshFocusView(){
+    previewStrip.style.display='block';
+    if(focusedMode==='original'){
+      if(!baseInputFile){focusView.style.display='none';return;}
+      focusImage.style.display='block';
+      focusDuo.style.display='none';
+      focusImage.src=URL.createObjectURL(baseInputFile);
+      focusView.style.display='block';
+      return;
+    }
+    if(focusedMode==='both'){
+      if(!baseInputFile || !lastOutputBlob){focusView.style.display='none';return;}
+      focusImage.style.display='none';
+      focusDuo.style.display='grid';
+      focusImageOrig.src=URL.createObjectURL(baseInputFile);
+      focusImageResult.src=URL.createObjectURL(lastOutputBlob);
+      focusView.style.display='block';
+      return;
+    }
+    if(lastOutputBlob){
+      focusImage.style.display='block';
+      focusDuo.style.display='none';
+      focusImage.src=URL.createObjectURL(lastOutputBlob);
+      focusView.style.display='block';
+      previewStrip.style.display='none';
+    }else{
+      focusView.style.display='none';
+    }
+  }
+  function makeFileFromBlob(blob,name){
+    return new File([blob],name,{type:blob.type||'image/png'});
+  }
+  async function uploadFileWith(file, pluginId, opts, abortSignal=null){
+    const fd=new FormData();
+    fd.append('image',file);
+    fd.append('plugin',pluginId||activePlugin||'remove_background');
+    const activeMeta=plugins[pluginId||activePlugin];
+    const disableScaling=activeMeta && activeMeta.disable_scaling===true;
+    if(!disableScaling) fd.append('target_size',targetSizeEl.value||'original');
+    Object.entries(opts||{}).forEach(([k,v])=>fd.append('opt_'+k,v));
+    const fetchOpts={method:'POST',body:fd};
+    if(abortSignal) fetchOpts.signal=abortSignal;
+    const resp=await fetch('/process',fetchOpts);
+    if(!resp.ok){
+      const j=await resp.json().catch(()=>({}));
+      throw new Error(j.error||`HTTP ${resp.status}`);
+    }
+    const jsonResp=await resp.json();
+    const blobResp=await fetch(jsonResp.download_url);
+    if(!blobResp.ok) throw new Error('Failed to fetch cached result');
+    const blob=await blobResp.blob();
+    const b64=await blobToBase64(blob);
+    return {blob,b64,name:file.name.replace(/\.[^.]+$/, '') + '_out.' + (jsonResp.file_extension||'png')};
+  }
+  async function processWith(pluginId,opts,inputFile){
+    return uploadFileWith(inputFile,pluginId,opts);
+  }
+  async function rebuildLayers(){
+    _syncFromProject();
+    if(!baseInputFile) return;
+    if(layerRun.running) return;
+    layerRun.running=true; layerRun.cancelled=false;
+    let current=baseInputFile;
+    let final=null;
+    for(let i=0;i<layers.length;i++){
+      const l=layers[i];
+      if(!l.enabled) continue;
+      layerRun.index=i;
+      layerRun.controller=new AbortController();
+      renderLayersList();
+      final=await uploadFileWith(current,l.plugin,l.options,layerRun.controller.signal);
+      current=makeFileFromBlob(final.blob,final.name);
+      if(layerRun.cancelled){break;}
+    }
+    if(final && !layerRun.cancelled){
+      lastOutputBlob=final.blob; lastOutputName=final.name;
+      lastOutputExt=(final.name.split('.').pop()||'png').toLowerCase();
+      lastOutputAnimated=lastOutputExt==='gif';
+      _syncToProject();
+      addPreview(baseInputFile,final.blob,final.b64,final.name);
+    }
+    layerRun.running=false; layerRun.index=-1; layerRun.controller=null;
+    renderLayersList();
+    await refreshFocusView();
   }
 
   function renderPluginOptions(meta){
@@ -560,7 +813,18 @@
     teStyle.innerHTML=styleSel?styleSel.innerHTML:'';
     teFont.innerHTML=fontSel?fontSel.innerHTML:'';
     teText.value=getCtrlValue('text','YOUR TEXT HERE');
-    teSize.value=getCtrlValue('font_size','80');
+    // Jeśli edytujemy konkretną warstwę text_on_image, bierz ustawienia z niej 1:1
+    if(selectedLayerIndex>=0 && layers[selectedLayerIndex] && layers[selectedLayerIndex].plugin==='text_on_image'){
+      const lo=layers[selectedLayerIndex].options||{};
+      if(lo.font_size!=null) teSize.value=lo.font_size;
+      if(lo.text!=null) teText.value=lo.text;
+      if(lo.position_x!=null) teX.value=lo.position_x;
+      if(lo.position_y!=null) teY.value=lo.position_y;
+      if(lo.style!=null) teStyle.value=lo.style;
+      if(lo.font!=null) teFont.value=lo.font;
+    } else {
+      teSize.value=getCtrlValue('font_size','80');
+    }
     teX.value=getCtrlValue('position_x','100');
     teY.value=getCtrlValue('position_y','100');
     teStyle.value=getCtrlValue('style','logo');
@@ -666,23 +930,38 @@
     setCtrlValue('bubble_mode',teBubbleMode.value);
     setCtrlValue('thought_count',teThoughtCount.value);
     setCtrlValue('opacity',teOpacity.value);
-    teOverlay.classList.remove('visible');
+    // nie zamykaj od razu; najpierw pewny zapis + render warstwy
     const editorFile=(teFile.files&&teFile.files[0])?teFile.files[0]:null;
     const fallbackQueued=queue.length?queue[0].file:null;
-    const sourceFile=editorFile||fallbackQueued;
+    if(editorFile && !baseInputFile) baseInputFile=editorFile;
+    const sourceFile=lastOutputBlob?makeFileFromBlob(lastOutputBlob,lastOutputName):(baseInputFile||fallbackQueued);
     if(!sourceFile){
       setStatus('Wybierz obraz w edytorze (lub dodaj go do kolejki), żeby wyrenderować efekt','orange');
       return;
     }
-    setStatus('Renderuję efekt z edytora...','orange');
-    uploadFile(sourceFile)
-      .then(result=>{
-        addPreview(sourceFile,result.blob,result.b64,result.name);
+    const opts=getOptions();
+    const isRegenerateCurrent=(currentLayerEffect===activePlugin);
+    if(!isRegenerateCurrent){
+      layers.push({plugin:activePlugin,options:{...opts},enabled:true});
+      currentLayerEffect=activePlugin;
+      btnLayerAdd.textContent='🔄 Regeneruj';
+      renderLayersList();
+    }else{
+      const i=layers.map((x,ii)=>x.plugin===activePlugin?ii:-1).filter(ii=>ii>=0).pop();
+      if(i>=0) layers[i].options={...opts};
+    }
+    // dopnij aktywny projekt obrazu, by warstwa miała gdzie się zapisać
+    if(!activeImageKey && baseInputFile){
+      activeImageKey=baseInputFile.name+':'+baseInputFile.size+':'+baseInputFile.lastModified;
+    }
+    _syncToProject();
+    setStatus('Renderuję efekt z edytora jako warstwę...','orange');
+    rebuildLayers()
+      .then(()=>{
+        teOverlay.classList.remove('visible');
         setStatus('✅ Gotowe!','green');
       })
-      .catch(err=>{
-        setStatus('Błąd renderu: '+(err.message||'unknown'),'red');
-      });
+      .catch(err=>setStatus('Błąd renderu: '+(err.message||'unknown'),'red'));
   });
   textEditorOpenBtn.addEventListener('click',openTextEditor);
 
@@ -709,11 +988,25 @@
   dropZone.addEventListener('dragleave',()=>dropZone.classList.remove('drag-over'));
   dropZone.addEventListener('drop',e=>{e.preventDefault();dropZone.classList.remove('drag-over');addFiles([...e.dataTransfer.files])});
   dropZone.addEventListener('click',()=>fileInput.click());
+  btnPickImage.addEventListener('click',()=>fileInput.click());
+  window.addEventListener('dragover',e=>{
+    if(!activePlugin) return;
+    const meta=plugins[activePlugin]||{};
+    if(meta.dropzone===false) return;
+    e.preventDefault();
+    dropZone.style.display='block';
+  });
+  window.addEventListener('drop',()=>{dropZone.style.display='none';});
+  window.addEventListener('dragleave',e=>{
+    if(e.clientX===0&&e.clientY===0) dropZone.style.display='none';
+  });
   fileInput.addEventListener('change',()=>{addFiles([...fileInput.files]);fileInput.value=''});
 
   function addFiles(files){
     const valid=files.filter(f=>ALLOWED.has(f.type)||/\.(jpe?g|png|bmp|gif|tiff?|webp)$/i.test(f.name));
     if(!valid.length)return;
+    if(!baseInputFile) baseInputFile=valid[0];
+    if(!activeImageKey && valid[0]) activeImageKey=valid[0].name+':'+valid[0].size+':'+valid[0].lastModified;
     valid.forEach(f=>{
       const item={file:f,status:'pending',rowEl:null};
       item.rowEl=createRow(item);queue.push(item);fileList.appendChild(item.rowEl);
@@ -831,6 +1124,8 @@
 
     const b64preview=b64.slice(0,120)+'…';
     const card=document.createElement('div');card.className='preview-card';
+    const imageKey=origFile.name+':'+origFile.size+':'+origFile.lastModified;
+    card.dataset.imageKey=imageKey;
     // Przechowuj blob URL w atrybucie karty
     card.dataset.blobUrl = URL.createObjectURL(resultBlob);
     card.innerHTML=`
@@ -951,14 +1246,113 @@
       });
     }
     previewStrip.prepend(card);
+    card.addEventListener('click',()=>{
+      activeImageKey=imageKey;
+      baseInputFile=origFile;
+      _syncFromProject();
+      renderLayersList();
+      refreshFocusView();
+      setStatus(`Aktywny obraz: ${origFile.name}`,'green');
+    });
   }
 
   btnClear.addEventListener('click',()=>{
     if(processing)return;
     queue=[];fileList.innerHTML='';previewStrip.innerHTML='';
     b64Store.clear();
+    baseInputFile=null;lastOutputBlob=null;layers=[];currentLayerEffect=null;selectedLayerIndex=-1;renderLayersList();
+    lastOutputExt='png';lastOutputAnimated=false;
+    btnLayerAdd.textContent='➕ Add';
+    refreshFocusView();
     fillEl.style.width='0%';textEl.textContent='';
     setStatus('Gotowy — przeciągnij zdjęcia aby rozpocząć');
+  });
+
+  btnLayerReset.addEventListener('click',()=>{
+    if(processing) return;
+    layers=[];currentLayerEffect=null;lastOutputBlob=null;selectedLayerIndex=-1;
+    _syncToProject();
+    lastOutputExt='png';lastOutputAnimated=false;
+    btnLayerAdd.textContent='➕ Add';
+    renderLayersList();
+    refreshFocusView();
+    setStatus('Zresetowano warstwy. Start od oryginału.','green');
+  });
+
+  btnLayerAdd.addEventListener('click',async()=>{
+    _syncFromProject();
+    if(processing) return;
+    if(layerRun.running) return;
+    const src=lastOutputBlob?makeFileFromBlob(lastOutputBlob,lastOutputName):(baseInputFile||(queue[0]&&queue[0].file));
+    if(!src){ setStatus('Najpierw dodaj obraz.','orange'); return; }
+    const opts=getOptions();
+    const isEditingSelected=(selectedLayerIndex>=0 && layers[selectedLayerIndex]);
+    const isRegenerateCurrent=(currentLayerEffect===activePlugin) || isEditingSelected;
+    if(lastOutputAnimated && !isRegenerateCurrent){
+      setStatus('Wynik to GIF: nie dodasz nowej warstwy, ale możesz użyć Regeneruj dla bieżącej.','orange');
+      return;
+    }
+    if(isEditingSelected){
+      layers[selectedLayerIndex].plugin=activePlugin;
+      layers[selectedLayerIndex].options={...opts};
+      currentLayerEffect=activePlugin;
+      _syncToProject();
+      btnLayerAdd.textContent='🔄 Regeneruj';
+      renderLayersList();
+    } else if(!isRegenerateCurrent){
+      layers.push({plugin:activePlugin,options:{...opts},enabled:true});
+      currentLayerEffect=activePlugin;
+      _syncToProject();
+      btnLayerAdd.textContent='🔄 Regeneruj';
+      renderLayersList();
+    }else{
+      const i=layers.map((x,ii)=>x.plugin===activePlugin?ii:-1).filter(ii=>ii>=0).pop();
+      if(i>=0) layers[i].options={...opts};
+      _syncToProject();
+    }
+    await rebuildLayers();
+  });
+  btnLayerStop.addEventListener('click',()=>{
+    if(layerRun.running && layerRun.controller){
+      layerRun.cancelled=true;
+      layerRun.controller.abort();
+      setStatus('Przerwano regenerację warstw.','orange');
+    }
+  });
+  btnLayerSave.addEventListener('click',()=>{
+    if(!layers.length){setStatus('Brak warstw do zapisania.','orange');return;}
+    const d=new Date();
+    const suggested=`Warstwy ${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    const name=(window.prompt('Nazwa presetu warstw:',suggested)||'').trim();
+    if(!name) return;
+    const presets=getLayerPresets();
+    presets[name]={layers:layers.map(l=>({plugin:l.plugin,options:{...l.options},enabled:!!l.enabled}))};
+    setLayerPresets(presets);
+    refreshPresetSelect();
+    layerPresetSelect.value=name;
+    setStatus(`Zapisano preset: ${name}`,'green');
+  });
+  btnLayerApply.addEventListener('click',async()=>{
+    const name=layerPresetSelect.value;
+    if(!name){setStatus('Wybierz preset warstw.','orange');return;}
+    const presets=getLayerPresets();
+    const preset=presets[name];
+    if(!preset||!Array.isArray(preset.layers)){setStatus('Preset jest uszkodzony.','red');return;}
+    layers=preset.layers.map(l=>({plugin:l.plugin,options:{...(l.options||{})},enabled:l.enabled!==false}));
+    currentLayerEffect=null;
+    selectedLayerIndex=-1;
+    _syncToProject();
+    btnLayerAdd.textContent='🔄 Regeneruj';
+    renderLayersList();
+    await rebuildLayers();
+    setStatus(`Zastosowano preset: ${name}`,'green');
+  });
+  btnFocusOriginal.addEventListener('click',async()=>{focusedMode='original';await refreshFocusView();});
+  btnFocusResult.addEventListener('click',async()=>{focusedMode='result';await refreshFocusView();});
+  btnFocusBoth.addEventListener('click',async()=>{focusedMode='both';await refreshFocusView();});
+  btnFocusDownload.addEventListener('click',()=>{
+    if(!lastOutputBlob){setStatus('Brak wyniku do pobrania.','orange');return;}
+    triggerDownload(lastOutputBlob,lastOutputName||('result.'+lastOutputExt));
   });
 
   // Inpaint Editor button - uses SEPARATE file input, not shared one

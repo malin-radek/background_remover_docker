@@ -26,6 +26,7 @@ METADATA = {
 }
 
 import io
+import math
 import threading
 from PIL import Image, ImageFilter, ImageOps, ImageEnhance, ImageChops, ImageDraw
 
@@ -106,11 +107,128 @@ def _stylize(base_rgb: Image.Image, style: str, intensity: float, line_w: int, k
         color_base = ImageEnhance.Color(base_rgb).enhance(1.15 if style == "crayon" else 0.9)
         merged = ImageChops.multiply(color_base, edge.convert("RGB"))
     else:
-        merged = ImageChops.multiply(gray.convert("RGB"), edge.convert("RGB"))
+        # "Papier" zamiast ciemnej bazy, żeby postać nie wpadała w czarną plamę
+        paper = Image.new("RGB", base_rgb.size, (236, 236, 236))
+        merged = ImageChops.multiply(paper, edge.convert("RGB"))
 
     merged = ImageEnhance.Contrast(merged).enhance(1.0 + intensity * 0.6)
     merged = ImageChops.multiply(merged, _pattern_layer(merged.size, pattern).convert("RGB"))
     return merged
+
+
+def _largest_components(mask_l: Image.Image, max_people: int = 3):
+    m = mask_l.point(lambda p: 255 if p > 20 else 0).convert("1")
+    labels = m.copy().convert("L")
+    pix = labels.load()
+    w, h = labels.size
+    visited = [[False] * h for _ in range(w)]
+    comps = []
+    for x in range(w):
+        for y in range(h):
+            if visited[x][y] or pix[x, y] == 0:
+                continue
+            stack = [(x, y)]
+            visited[x][y] = True
+            pts = []
+            minx = maxx = x
+            miny = maxy = y
+            while stack:
+                cx, cy = stack.pop()
+                pts.append((cx, cy))
+                minx, maxx = min(minx, cx), max(maxx, cx)
+                miny, maxy = min(miny, cy), max(maxy, cy)
+                for nx, ny in ((cx - 1, cy), (cx + 1, cy), (cx, cy - 1), (cx, cy + 1)):
+                    if 0 <= nx < w and 0 <= ny < h and (not visited[nx][ny]) and pix[nx, ny] != 0:
+                        visited[nx][ny] = True
+                        stack.append((nx, ny))
+            area = len(pts)
+            if area > (w * h) * 0.003:
+                comps.append((area, (minx, miny, maxx, maxy), pts))
+    comps.sort(key=lambda x: x[0], reverse=True)
+    return comps[:max_people]
+
+
+def _mask_from_points(size, pts):
+    out = Image.new("L", size, 0)
+    d = ImageDraw.Draw(out)
+    for x, y in pts:
+        d.point((x, y), fill=255)
+    return out.filter(ImageFilter.MaxFilter(5)).filter(ImageFilter.GaussianBlur(1.0))
+
+
+def _manga_hero_intelligent(src_rgb: Image.Image, person_mask: Image.Image, fg_style: str, fg_pattern: str, fg_int: float, fg_line: int, fg_color: bool):
+    w, h = src_rgb.size
+    base_style = "manga" if fg_style == "original" else fg_style
+    # Jasna baza "papieru" pod postać (eliminuje czarną plamę)
+    paper = Image.new("RGBA", (w, h), (246, 246, 246, 255))
+    # Background: quieter so characters pop
+    bg = _stylize(src_rgb, "pencil", 0.25, 1, False, "grid").convert("RGBA")
+    out = bg.copy()
+
+    comps = _largest_components(person_mask, max_people=4)
+    if not comps:
+        return Image.composite(base, bg, person_mask)
+
+    region_patterns = ["line", "cross", "grid"]
+    for _, (minx, miny, maxx, maxy), pts in comps:
+        ph = max(1, maxy - miny + 1)
+        # Heuristic body parts from silhouette proportions
+        head_y = miny + int(ph * 0.20)
+        torso_y = miny + int(ph * 0.56)
+        legs_y = miny + int(ph * 0.98)
+        parts = {"head": [], "torso": [], "legs": []}
+        for x, y in pts:
+            if y <= head_y:
+                parts["head"].append((x, y))
+            elif y <= torso_y:
+                parts["torso"].append((x, y))
+            elif y <= legs_y:
+                parts["legs"].append((x, y))
+
+        for i, key in enumerate(("head", "torso", "legs")):
+            p = parts[key]
+            if not p:
+                continue
+            part_mask = _mask_from_points((w, h), p)
+            # 1) Wypełnienie: jasne, lekko tonowane mapą jasności regionu
+            gray = src_rgb.convert("L")
+            local_tone = ImageOps.autocontrast(gray.crop((minx, miny, maxx + 1, maxy + 1)))
+            local_tone = local_tone.filter(ImageFilter.GaussianBlur(1.0))
+            tone_canvas = Image.new("L", (w, h), 220)
+            tone_canvas.paste(local_tone, (minx, miny))
+            tone_rgb = Image.merge("RGB", (tone_canvas, tone_canvas, tone_canvas))
+            fill_rgba = paper.copy()
+            fill_rgba = ImageChops.multiply(fill_rgba.convert("RGB"), tone_rgb).convert("RGBA")
+
+            # 2) Hatch jako cieniowanie (nie przyciemnianie całości)
+            local_pattern = fg_pattern if fg_pattern in ("line", "cross", "grid", "spiral") else region_patterns[i]
+            hatch = _pattern_layer((w, h), local_pattern)
+            hatch_alpha = ImageOps.invert(tone_canvas).point(lambda v: int(v * 0.45))
+            hatch_rgba = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+            hatch_rgba.putalpha(ImageChops.multiply(hatch, hatch_alpha))
+
+            # 3) Kontur części ciała: ciągła, grubsza kreska
+            edges = part_mask.filter(ImageFilter.FIND_EDGES)
+            for _ in range(max(2, fg_line)):
+                edges = edges.filter(ImageFilter.MaxFilter(3))
+            edge_alpha = ImageEnhance.Contrast(edges).enhance(2.8).point(lambda v: 255 if v > 26 else 0)
+            edge_rgba = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+            edge_rgba.putalpha(edge_alpha)
+
+            out = Image.composite(fill_rgba, out, part_mask)
+            out = Image.alpha_composite(out, hatch_rgba)
+            out = Image.alpha_composite(out, edge_rgba)
+
+    # Globalny kontur sylwetki dla czytelności "manga hero"
+    silhouette_edge = person_mask.filter(ImageFilter.FIND_EDGES)
+    for _ in range(max(2, fg_line + 1)):
+        silhouette_edge = silhouette_edge.filter(ImageFilter.MaxFilter(3))
+    sil_alpha = ImageEnhance.Contrast(silhouette_edge).enhance(3.0).point(lambda v: 255 if v > 18 else 0)
+    sil_rgba = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    sil_rgba.putalpha(sil_alpha)
+    out = Image.alpha_composite(out, sil_rgba)
+
+    return out
 
 
 def process(image_bytes: bytes, options: dict) -> bytes:
@@ -130,24 +248,8 @@ def process(image_bytes: bytes, options: dict) -> bytes:
     fg_color = _to_bool(options.get("fg_color", "true"))
     bg_color = _to_bool(options.get("bg_color", "false"))
 
-    if preset == "manga_hero":
-        fg_style, bg_style = "manga", "pencil"
-        fg_pattern, bg_pattern = "line", "grid"
-        fg_int, bg_int = 0.95, 0.35
-        fg_line, bg_line = 4, 1
-        fg_color, bg_color = False, False
-    elif preset == "charcoal_drama":
-        fg_style, bg_style = "charcoal", "charcoal"
-        fg_pattern, bg_pattern = "cross", "line"
-        fg_int, bg_int = 0.98, 0.72
-        fg_line, bg_line = 5, 3
-        fg_color, bg_color = False, False
-    elif preset == "color_crayon_portrait":
-        fg_style, bg_style = "crayon", "pencil"
-        fg_pattern, bg_pattern = "spiral", "line"
-        fg_int, bg_int = 0.82, 0.30
-        fg_line, bg_line = 2, 1
-        fg_color, bg_color = True, False
+    # Preset traktujemy jako "tryb", ale nie nadpisujemy ręcznych opcji UI.
+    # Dzięki temu zmiana stylu/suwaków zawsze działa natychmiast.
 
     src = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
     src_rgb = src.convert("RGB")
@@ -156,8 +258,10 @@ def process(image_bytes: bytes, options: dict) -> bytes:
     fg_st = _stylize(src_rgb, fg_style, fg_int, fg_line, fg_color, fg_pattern).convert("RGBA")
     bg_st = _stylize(src_rgb, bg_style, bg_int, bg_line, bg_color, bg_pattern).convert("RGBA")
     out = Image.composite(fg_st, bg_st, mask)
+    if preset == "manga_hero" and fg_style != "original":
+        # Inteligentny tryb tylko jako warstwa "hero", ale nie kasuje ustawień UI
+        out = _manga_hero_intelligent(src_rgb, mask, fg_style, fg_pattern, fg_int, fg_line, fg_color)
 
     buf = io.BytesIO()
     out.save(buf, format="PNG")
     return buf.getvalue()
-
