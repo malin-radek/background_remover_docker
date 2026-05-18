@@ -105,10 +105,11 @@ METADATA = {
 }
 
 import io
+import base64
 import math
 import threading
 import numpy as np
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import Image, ImageDraw, ImageFilter, ImageOps
 
 try:
     from rembg import remove, new_session
@@ -377,6 +378,13 @@ def _shrink_polygon(polygon: list, cx: float, cy: float, alpha_arr, shrink_px: f
 
 def _prepare_bg(W: int, H: int, bg_type: str, original_img: Image.Image) -> Image.Image:
     """Przygotuj tło (bez inpainting — szybko)."""
+    if isinstance(bg_type, str) and bg_type.startswith("data:image"):
+        try:
+            _, b64 = bg_type.split(",", 1)
+            bg_img = Image.open(io.BytesIO(base64.b64decode(b64))).convert("RGBA")
+            return ImageOps.fit(bg_img, (W, H), method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
+        except Exception as e:
+            raise ValueError(f"Nie udało się wczytać tła z projektu: {e}") from e
     if bg_type == "original":
         return original_img.convert("RGBA")
     elif bg_type == "white":

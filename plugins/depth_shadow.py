@@ -257,8 +257,8 @@ def process(image_bytes: bytes, options: dict) -> bytes:
         "black":      (0, 0, 0),
     }
 
-    if background == "original":
-        bg = prepare_background(img_original.size, "original", img_original, alpha_mask_img)
+    if background == "original" or (isinstance(background, str) and background.startswith("data:image")):
+        bg = prepare_background(img_original.size, background, img_original, alpha_mask_img)
     else:
         bg_color = bg_color_map.get(background, (255, 255, 255))
         bg = Image.new("RGB", (W, H), bg_color)

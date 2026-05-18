@@ -280,8 +280,8 @@ def process(image_bytes: bytes, options: dict) -> bytes:
 
         ca_img = Image.fromarray(ca_arr, "RGBA")
 
-        if background == "original":
-            bg = prepare_background(img_original.size, "original", img_original, alpha_mask)
+        if background == "original" or (isinstance(background, str) and background.startswith("data:image")):
+            bg = prepare_background(img_original.size, background, img_original, alpha_mask)
         else:
             color = bg_map.get(background, (0, 0, 0))
             bg = Image.new("RGB", img_original.size, color)

@@ -266,8 +266,8 @@ def process(image_bytes: bytes, options: dict) -> bytes:
     }
 
     def make_bg():
-        if background == "original":
-            return prepare_background(img_original.size, "original", img_original, alpha_mask_img).convert("RGBA")
+        if background == "original" or (isinstance(background, str) and background.startswith("data:image")):
+            return prepare_background(img_original.size, background, img_original, alpha_mask_img).convert("RGBA")
         return Image.new("RGBA", (W, H), (*bg_map.get(background, (0,0,0)), 255))
 
     base_gradient = _make_foil_gradient(W, H, pattern)

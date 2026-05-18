@@ -473,9 +473,14 @@ def get_result(image_id: str):
             mime_type = metadata.get("mime_type", "image/png")
             filename = metadata.get("filename", f"image.{mime_type.split('/')[-1]}")
             
+            # Sanitize filename for HTTP header (ASCII only)
+            import unicodedata
+            safe_filename = unicodedata.normalize("NFKD", filename).encode("ascii", "ignore").decode("ascii")
+            safe_filename = "".join(c for c in safe_filename if c.isalnum() or c in "._- ")
+            
             response = make_response(result_bytes)
             response.headers["Content-Type"] = mime_type
-            response.headers["Content-Disposition"] = f'inline; filename="{filename}"'
+            response.headers["Content-Disposition"] = f'inline; filename="{safe_filename}"'
             response.headers["X-Elapsed-Seconds"] = str(metadata.get("elapsed_seconds", 0))
             response.headers["X-Plugin"] = metadata.get("plugin", "unknown")
             return response

@@ -22,7 +22,7 @@
   #counter-box{background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.2);border-radius:6px;padding:6px 14px;text-align:center}
   #counter-box .cnt-num{font-family:'Syne',sans-serif;font-size:1.4rem;font-weight:800;color:var(--green);line-height:1}
   #counter-box .cnt-lbl{font-size:.6rem;color:rgba(255,255,255,.6);letter-spacing:1px;text-transform:uppercase}
-  main{width:100%;max-width:1000px;padding:20px 20px 40px;display:flex;flex-direction:column;gap:14px}
+  main{width:100%;max-width:1600px;padding:20px 20px 40px;display:flex;flex-direction:column;gap:14px}
 
   /* plugin selector */
   .section-label{font-size:.85rem;font-weight:700;color:var(--green)}
@@ -42,6 +42,9 @@
   /* plugin options */
   #plugin-options{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:12px 14px;display:flex;flex-wrap:wrap;gap:14px}
   .ctrl-group{display:flex;align-items:center;gap:8px}
+  .ctrl-group.bg-project-group{flex-wrap:wrap}
+  .bg-project-select{min-width:240px;border-color:var(--green-dim)}
+  .bg-project-hint{font-size:.68rem;color:var(--muted)}
   .ctrl-group label{font-size:.8rem;font-weight:700;color:var(--text)}
   select{background:#333;color:var(--white);border:1px solid var(--border);border-radius:3px;padding:4px 8px;font-family:'JetBrains Mono',monospace;font-size:.8rem;cursor:pointer;outline:none}
   select:focus{border-color:var(--blue)}
@@ -76,6 +79,23 @@
   button{padding:12px 20px;font-family:'Syne',sans-serif;font-weight:700;font-size:.95rem;border:none;border-radius:4px;cursor:pointer;letter-spacing:.5px;transition:filter .1s,transform .1s}
   button:active{transform:scale(.98);filter:brightness(.85)}
   #btn-clear{background:var(--red);color:var(--white)}
+
+  #projects-panel{background:#202020;border:1px solid var(--border);border-radius:6px;padding:12px;display:flex;flex-direction:column;gap:10px}
+  #projects-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+  #projects-actions{display:flex;gap:8px;flex-wrap:wrap}
+  #active-project-title{font-family:'Syne',sans-serif;font-size:1.05rem;font-weight:800;color:var(--white)}
+  #active-project-meta{font-size:.72rem;color:var(--muted)}
+  #projects-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+  .project-card{display:grid;grid-template-columns:58px 1fr auto;gap:10px;align-items:center;background:#2a2a2a;border:2px solid #3c3c3c;border-radius:6px;padding:8px;text-align:left;cursor:pointer;min-height:76px}
+  .project-card.active{border-color:var(--green);background:#1f2d22}
+  .project-card.archived{opacity:.62}
+  .project-thumb{width:58px;height:58px;border-radius:4px;background:repeating-conic-gradient(#333 0% 25%,#222 0% 50%) 0 0/14px 14px;object-fit:contain;border:1px solid #444}
+  .project-info{min-width:0;display:flex;flex-direction:column;gap:4px}
+  .project-name{font-size:.78rem;color:var(--white);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .project-state{font-size:.66rem;color:var(--muted);line-height:1.3}
+  .project-card.active .project-state{color:#b8f6b8}
+  .project-actions{display:flex;flex-direction:column;gap:5px}
+  .project-actions button{font-size:.62rem;padding:5px 7px;font-family:'JetBrains Mono',monospace;letter-spacing:0;background:#333;color:var(--text);border:1px solid #555}
 
   #preview-strip{display:flex;flex-direction:column;gap:16px}
   .preview-card{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:14px;animation:fadeIn .3s ease;display:flex;flex-direction:column;gap:12px}
@@ -137,8 +157,8 @@
   .layer-progress.run > i{width:100%;animation:lp 1s linear infinite}
   @keyframes lp{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
   #focus-toggle{display:flex;gap:6px;justify-content:flex-end;margin-bottom:8px}
-  #focus-view{margin-top:10px;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px}
-  #focus-view img{width:100%;height:auto;max-height:70vh;object-fit:contain;border-radius:4px;background:#111}
+  #focus-view{margin-top:10px;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px;width:100%}
+  #focus-view img{width:100%;height:auto;max-height:calc(100vh - 280px);object-fit:contain;border-radius:4px;background:#111}
   #focus-duo{display:none;grid-template-columns:1fr 1fr;gap:10px}
   .focus-col{display:flex;flex-direction:column;gap:6px}
   .focus-col span{font-size:.72rem;color:var(--muted);font-weight:700}
@@ -153,6 +173,21 @@
   </div>
 </header>
 <main>
+
+  <div id="projects-panel">
+    <div id="projects-head">
+      <div>
+        <div class="section-label">Projekty</div>
+        <div id="active-project-title">Brak aktywnego projektu</div>
+        <div id="active-project-meta">Wybierz obraz, aby utworzyć pierwszy projekt.</div>
+      </div>
+      <div id="projects-actions">
+        <button id="btn-show-archived">Archiwum</button>
+        <button id="btn-new-project">＋ Nowy projekt</button>
+      </div>
+    </div>
+    <div id="projects-list"></div>
+  </div>
 
   <!-- Plugin selector -->
   <div class="section-label">Plugin:</div>
@@ -315,7 +350,12 @@
         targetSizeEl=document.getElementById('target-size'),
         scalingSectionEl=document.getElementById('scaling-section'),
         btnInpaintEditor=document.getElementById('btn-inpaint-editor'),
-        inpaintButtonContainer=document.getElementById('inpaint-button-container');
+        inpaintButtonContainer=document.getElementById('inpaint-button-container'),
+        projectsList=document.getElementById('projects-list'),
+        activeProjectTitle=document.getElementById('active-project-title'),
+        activeProjectMeta=document.getElementById('active-project-meta'),
+        btnNewProject=document.getElementById('btn-new-project'),
+        btnShowArchived=document.getElementById('btn-show-archived');
   const btnPickImage=document.getElementById('btn-pick-image');
   const textEditorOpenBtn=document.getElementById('text-editor-open'),
         teOverlay=document.getElementById('text-editor-overlay'),
@@ -388,11 +428,125 @@
   let focusedMode='result';
   let lastOutputExt='png',lastOutputAnimated=false;
   let layerRun={running:false,index:-1,controller:null,cancelled:false};
+  let projectCounter=0;
+  let forceNewProjectOnNextAdd=false,showArchivedProjects=false,forcedProjectCounter=0;
   const LAYER_PRESETS_KEY='layer_presets_v1';
 
   // ── Przechowywanie b64 poza DOM ───────────────────────────────────────────
   const b64Store=new Map(); // cardId -> base64 string
   let cardCounter=0;
+  const PROJECT_DB_NAME='image_processor_projects_v2';
+  const PROJECT_STORE='projects';
+  const ACTIVE_PROJECT_KEY='active_image_project_key_v2';
+  let projectDbPromise=null,restoringProjects=false;
+
+  function openProjectDb(){
+    if(projectDbPromise) return projectDbPromise;
+    projectDbPromise=new Promise((resolve,reject)=>{
+      const req=indexedDB.open(PROJECT_DB_NAME,1);
+      req.onupgradeneeded=()=>req.result.createObjectStore(PROJECT_STORE,{keyPath:'key'});
+      req.onsuccess=()=>resolve(req.result);
+      req.onerror=()=>reject(req.error);
+    });
+    return projectDbPromise;
+  }
+  function txDone(tx){
+    return new Promise((resolve,reject)=>{
+      tx.oncomplete=()=>resolve();
+      tx.onerror=()=>reject(tx.error);
+      tx.onabort=()=>reject(tx.error);
+    });
+  }
+  function cloneLayersForStorage(projectLayers){
+    return (projectLayers||[]).map(l=>({plugin:l.plugin,options:{...(l.options||{})},enabled:l.enabled!==false}));
+  }
+  async function persistProject(key){
+    if(restoringProjects||!key) return;
+    const p=imageProjects.get(key);
+    if(!p) return;
+    try{
+      const db=await openProjectDb();
+      const tx=db.transaction(PROJECT_STORE,'readwrite');
+      tx.objectStore(PROJECT_STORE).put({
+        key,
+        id:p.id,
+        name:p.name,
+        archived:!!p.archived,
+        layers:cloneLayersForStorage(p.layers),
+        currentLayerEffect:p.currentLayerEffect,
+        selectedLayerIndex:p.selectedLayerIndex,
+        lastOutputName:p.lastOutputName,
+        lastOutputExt:p.lastOutputExt,
+        lastOutputAnimated:!!p.lastOutputAnimated,
+        origBlob:p.origFile||null,
+        origName:p.origFile?.name||p.name||'image.png',
+        origType:p.origFile?.type||'image/png',
+        origLastModified:p.origFile?.lastModified||Date.now(),
+        resultBlob:p.lastOutputBlob||null,
+        updatedAt:Date.now()
+      });
+      await txDone(tx);
+      if(activeImageKey) localStorage.setItem(ACTIVE_PROJECT_KEY,activeImageKey);
+    }catch(err){
+      console.warn('[projects] persist failed',err);
+    }
+  }
+  async function clearPersistentProjects(){
+    try{
+      const db=await openProjectDb();
+      const tx=db.transaction(PROJECT_STORE,'readwrite');
+      tx.objectStore(PROJECT_STORE).clear();
+      await txDone(tx);
+      localStorage.removeItem(ACTIVE_PROJECT_KEY);
+    }catch(err){
+      console.warn('[projects] clear failed',err);
+    }
+  }
+  async function restoreProjects(){
+    try{
+      restoringProjects=true;
+      const db=await openProjectDb();
+      const tx=db.transaction(PROJECT_STORE,'readonly');
+      const req=tx.objectStore(PROJECT_STORE).getAll();
+      const records=await new Promise((resolve,reject)=>{
+        req.onsuccess=()=>resolve(req.result||[]);
+        req.onerror=()=>reject(req.error);
+      });
+      await txDone(tx);
+      records.sort((a,b)=>(a.id||0)-(b.id||0)).forEach(rec=>{
+        const origFile=rec.origBlob ? new File([rec.origBlob],rec.origName||rec.name||'image.png',{type:rec.origType||rec.origBlob.type||'image/png',lastModified:rec.origLastModified||Date.now()}) : null;
+        const thumbBlob=rec.resultBlob||origFile;
+        imageProjects.set(rec.key,{
+          id:rec.id||++projectCounter,
+          name:rec.name||rec.origName||('Projekt '+(rec.id||'?')),
+          archived:!!rec.archived,
+          origFile,
+          origUrl:origFile?URL.createObjectURL(origFile):'',
+          thumbUrl:thumbBlob?URL.createObjectURL(thumbBlob):'',
+          layers:Array.isArray(rec.layers)?rec.layers:[],
+          currentLayerEffect:rec.currentLayerEffect||null,
+          selectedLayerIndex:Number.isInteger(rec.selectedLayerIndex)?rec.selectedLayerIndex:-1,
+          lastOutputBlob:rec.resultBlob||null,
+          lastOutputName:rec.lastOutputName||'result.png',
+          lastOutputExt:rec.lastOutputExt||'png',
+          lastOutputAnimated:!!rec.lastOutputAnimated
+        });
+        projectCounter=Math.max(projectCounter,rec.id||0);
+      });
+      const savedActive=localStorage.getItem(ACTIVE_PROJECT_KEY);
+      activeImageKey=imageProjects.has(savedActive)?savedActive:([...[...imageProjects.entries()].filter(([_,p])=>!p.archived),...imageProjects.entries()][0]?.[0]||null);
+      if(activeImageKey) _syncFromProject();
+      renderProjectList();
+      renderLayersList();
+      await refreshFocusView();
+      refreshProjectBackgroundOptions();
+      if(records.length) setStatus(`Przywrócono ${records.length} projekt${records.length===1?'':'ów'} z przeglądarki.`,'green');
+    }catch(err){
+      console.warn('[projects] restore failed',err);
+    }finally{
+      restoringProjects=false;
+    }
+  }
 
   // ── Pluginy ───────────────────────────────────────────────────────────────
   async function loadPlugins(){
@@ -441,25 +595,190 @@
     // Aktywuj domyślny
     if(!activePlugin && ids.length>0) selectPlugin(ids[0]);
   }
+  function _keyForFile(file){
+    return file ? file.name+':'+file.size+':'+file.lastModified : null;
+  }
+  function _newProjectKeyForFile(file){
+    return _keyForFile(file)+':project:'+Date.now()+':'+(++forcedProjectCounter);
+  }
+  function _findProjectKeyForFileObject(file){
+    for(const [key,p] of imageProjects.entries()){
+      if(p.origFile===file) return key;
+    }
+    return null;
+  }
+  function _blobForProject(p){
+    if(!p) return null;
+    return p.lastOutputBlob || null;
+  }
   function _projectForKey(key){
     if(!key) return null;
     if(!imageProjects.has(key)){
-      imageProjects.set(key,{layers:[],currentLayerEffect:null,selectedLayerIndex:-1,lastOutputBlob:null,lastOutputName:'result.png',lastOutputExt:'png',lastOutputAnimated:false});
+      imageProjects.set(key,{id:++projectCounter,name:'Projekt '+projectCounter,origFile:null,origUrl:'',thumbUrl:'',layers:[],currentLayerEffect:null,selectedLayerIndex:-1,lastOutputBlob:null,lastOutputName:'result.png',lastOutputExt:'png',lastOutputAnimated:false});
     }
     return imageProjects.get(key);
+  }
+  function _ensureProjectForFile(file,forceNew=false){
+    const key=forceNew ? _newProjectKeyForFile(file) : (_findProjectKeyForFileObject(file)||_keyForFile(file));
+    const p=_projectForKey(key);
+    if(p && file && !p.origFile){
+      p.origFile=file;
+      p.name=forceNew ? `${file.name} #${p.id}` : file.name;
+      p.origUrl=URL.createObjectURL(file);
+      if(!p.thumbUrl) p.thumbUrl=p.origUrl;
+    }
+    renderProjectList();
+    refreshProjectBackgroundOptions();
+    persistProject(key);
+    return key;
   }
   function _syncFromProject(){
     const p=_projectForKey(activeImageKey);
     if(!p) return;
+    baseInputFile=p.origFile||baseInputFile;
     layers=p.layers; currentLayerEffect=p.currentLayerEffect; selectedLayerIndex=p.selectedLayerIndex;
     lastOutputBlob=p.lastOutputBlob; lastOutputName=p.lastOutputName; lastOutputExt=p.lastOutputExt; lastOutputAnimated=p.lastOutputAnimated;
     btnLayerAdd.textContent=(selectedLayerIndex>=0 || currentLayerEffect===activePlugin)?'🔄 Regeneruj':'➕ Add';
+    renderProjectList();
+    refreshProjectBackgroundOptions();
   }
   function _syncToProject(){
     const p=_projectForKey(activeImageKey);
     if(!p) return;
+    p.origFile=baseInputFile||p.origFile;
     p.layers=layers; p.currentLayerEffect=currentLayerEffect; p.selectedLayerIndex=selectedLayerIndex;
     p.lastOutputBlob=lastOutputBlob; p.lastOutputName=lastOutputName; p.lastOutputExt=lastOutputExt; p.lastOutputAnimated=lastOutputAnimated;
+    if(lastOutputBlob) p.thumbUrl=URL.createObjectURL(lastOutputBlob);
+    renderProjectList();
+    refreshProjectBackgroundOptions();
+    persistProject(activeImageKey);
+  }
+  function renderProjectList(){
+    const entries=[...imageProjects.entries()].filter(([_,p])=>showArchivedProjects || !p.archived);
+    projectsList.innerHTML='';
+    btnShowArchived.textContent=showArchivedProjects?'Ukryj archiwum':'Archiwum';
+    entries.forEach(([key,p])=>{
+      const card=document.createElement('div');
+      card.className='project-card'+(key===activeImageKey?' active':'')+(p.archived?' archived':'');
+      const layerCount=(p.layers||[]).length;
+      const state=p.archived?'archiwum':(p.lastOutputBlob?'wynik gotowy':(p.origFile?'oryginał załadowany':'pusty'));
+      card.innerHTML=`<img class="project-thumb" src="${p.thumbUrl||p.origUrl||''}" alt="">
+        <span class="project-info">
+          <span class="project-name">${p.name||('Projekt '+p.id)}</span>
+          <span class="project-state">${layerCount} warstw · ${state}</span>
+        </span>
+        <span class="project-actions">
+          <button type="button" data-archive="${key}">${p.archived?'Przywróć':'Archiwizuj'}</button>
+        </span>`;
+      card.addEventListener('click',()=>switchProject(key));
+      card.querySelector('button[data-archive]').addEventListener('click',e=>{
+        e.stopPropagation();
+        setProjectArchived(key,!p.archived);
+      });
+      projectsList.appendChild(card);
+    });
+    const active=_projectForKey(activeImageKey);
+    if(active){
+      activeProjectTitle.textContent=active.name||('Projekt '+active.id);
+      activeProjectMeta.textContent=`Aktywny projekt · ${(active.layers||[]).length} warstw · ${active.lastOutputBlob?'wynik gotowy':'pracujesz na oryginale'}`;
+    }else{
+      activeProjectTitle.textContent='Brak aktywnego projektu';
+      activeProjectMeta.textContent='Wybierz obraz, aby utworzyć pierwszy projekt.';
+    }
+  }
+  function setProjectArchived(key,archived){
+    const p=_projectForKey(key);
+    if(!p) return;
+    p.archived=archived;
+    if(archived && key===activeImageKey){
+      const next=[...imageProjects.entries()].find(([k,proj])=>k!==key && !proj.archived);
+      if(next){
+        switchProject(next[0]);
+      }else{
+        activeImageKey=null;
+        localStorage.removeItem(ACTIVE_PROJECT_KEY);
+        baseInputFile=null;lastOutputBlob=null;lastOutputName='result.png';lastOutputExt='png';lastOutputAnimated=false;
+        layers=[];currentLayerEffect=null;selectedLayerIndex=-1;
+        renderLayersList();
+        refreshFocusView();
+      }
+    }
+    renderProjectList();
+    refreshProjectBackgroundOptions();
+    persistProject(key);
+    setStatus(`${archived?'Zarchiwizowano':'Przywrócono'} projekt: ${p.name}`,'green');
+  }
+  function switchProject(key){
+    if(layerRun.running){setStatus('Najpierw zatrzymaj lub poczekaj na regenerację warstw.','orange');return;}
+    activeImageKey=key;
+    localStorage.setItem(ACTIVE_PROJECT_KEY,key);
+    _syncFromProject();
+    renderLayersList();
+    refreshFocusView();
+    const p=_projectForKey(key);
+    setStatus(p?`Aktywny projekt: ${p.name}`:'Brak aktywnego projektu',p?'green':'yellow');
+  }
+  function projectBackgroundLabel(p){
+    return `Projekt: ${p.name||('Projekt '+p.id)} (wynik)`;
+  }
+  function refreshProjectBackgroundOptions(){
+    const selects=pluginOptionsEl.querySelectorAll('select[data-key="background"]');
+    const available=[...imageProjects.entries()].filter(([key,p])=>key!==activeImageKey && !p.archived && _blobForProject(p));
+    selects.forEach(sel=>{
+      const current=sel.value;
+      sel.querySelectorAll('option[data-project-bg="1"]').forEach(o=>o.remove());
+      if(available.length){
+        const divider=document.createElement('option');
+        divider.disabled=true;
+        divider.dataset.projectBg='1';
+        divider.textContent='── Tła z projektów ──';
+        sel.appendChild(divider);
+      }
+      available.forEach(([key,p])=>{
+        const o=document.createElement('option');
+        o.value='project:'+key;
+        o.textContent=projectBackgroundLabel(p);
+        o.dataset.projectBg='1';
+        sel.appendChild(o);
+      });
+      if([...sel.options].some(o=>o.value===current)) sel.value=current;
+    });
+    const projectSelects=pluginOptionsEl.querySelectorAll('select[data-key="_project_background"]');
+    projectSelects.forEach(sel=>{
+      const current=sel.value;
+      sel.innerHTML='';
+      const none=document.createElement('option');
+      none.value='';
+      none.textContent=available.length?'Nie używaj projektu':'Brak gotowych wyników z innych projektów';
+      sel.appendChild(none);
+      available.forEach(([key,p])=>{
+        const o=document.createElement('option');
+        o.value='project:'+key;
+        o.textContent=projectBackgroundLabel(p);
+        sel.appendChild(o);
+      });
+      if([...sel.options].some(o=>o.value===current)) sel.value=current;
+    });
+  }
+  function blobToDataUrl(blob){
+    return new Promise((resolve,reject)=>{
+      const reader=new FileReader();
+      reader.onload=()=>resolve(reader.result);
+      reader.onerror=reject;
+      reader.readAsDataURL(blob);
+    });
+  }
+  async function resolveProjectBackdrops(opts){
+    const out={...opts};
+    for(const [key,val] of Object.entries(out)){
+      if(typeof val!=='string' || !val.startsWith('project:')) continue;
+      const projectKey=val.slice('project:'.length);
+      const p=_projectForKey(projectKey);
+      const blob=_blobForProject(p);
+      if(!blob) throw new Error('Wybrany projekt tła nie ma jeszcze obrazu.');
+      out[key]=await blobToDataUrl(blob);
+    }
+    return out;
   }
 
   function selectPlugin(id){
@@ -506,11 +825,12 @@
       row.className='layer-row'+(isRunning?' active':'');
       row.innerHTML=`<input type="checkbox" ${l.enabled?'checked':''} data-i="${idx}"><span class="layer-name">#${idx+1} ${plugins[l.plugin]?.name||l.plugin} ${l.enabled?'':'(OFF)'} ${isRunning?'• regeneruję...':''} ${selectedLayerIndex===idx?'• EDYCJA':''}</span><span class="layer-progress ${isRunning?'run':''}"><i></i></span><button data-edit="${idx}">Edytuj</button><button data-del="${idx}">Usuń</button>`;
       const cb=row.querySelector('input');
-      cb.addEventListener('change',async()=>{l.enabled=cb.checked;await rebuildLayers();});
+      cb.addEventListener('change',async()=>{l.enabled=cb.checked;_syncToProject();await rebuildLayers();});
       row.querySelector('button[data-edit]').addEventListener('click',()=>{
         selectedLayerIndex=idx;
         const layer=layers[idx];
         if(!layer) return;
+        _syncToProject();
         selectPlugin(layer.plugin);
         Object.entries(layer.options||{}).forEach(([k,v])=>setCtrlValue(k,v));
         renderLayersList();
@@ -586,7 +906,8 @@
     const activeMeta=plugins[pluginId||activePlugin];
     const disableScaling=activeMeta && activeMeta.disable_scaling===true;
     if(!disableScaling) fd.append('target_size',targetSizeEl.value||'original');
-    Object.entries(opts||{}).forEach(([k,v])=>fd.append('opt_'+k,v));
+    const resolvedOpts=await resolveProjectBackdrops(opts||{});
+    Object.entries(resolvedOpts).forEach(([k,v])=>fd.append('opt_'+k,v));
     const fetchOpts={method:'POST',body:fd};
     if(abortSignal) fetchOpts.signal=abortSignal;
     const resp=await fetch('/process',fetchOpts);
@@ -695,6 +1016,7 @@
         ctrl=document.createElement('select');
         ctrl.id='opt-'+key;
         ctrl.dataset.key=key;
+        if(key==='background') grp.classList.add('bg-project-group');
         if(opt.choices){
           Object.entries(opt.choices).forEach(([val,label])=>{
             const o=document.createElement('option');
@@ -703,11 +1025,31 @@
             ctrl.appendChild(o);
           });
         }
+        if(key==='background'){
+          ctrl.dataset.projectBackground='1';
+          ['focus','mousedown','click'].forEach(evt=>ctrl.addEventListener(evt,refreshProjectBackgroundOptions));
+        }
         grp.appendChild(lbl);
         grp.appendChild(ctrl);
+        if(key==='background'){
+          const projectLbl=document.createElement('label');
+          projectLbl.textContent='Wynik projektu jako tło:';
+          const projectCtrl=document.createElement('select');
+          projectCtrl.id='opt-background-project';
+          projectCtrl.dataset.key='_project_background';
+          projectCtrl.className='bg-project-select';
+          ['focus','mousedown','click'].forEach(evt=>projectCtrl.addEventListener(evt,refreshProjectBackgroundOptions));
+          const hint=document.createElement('span');
+          hint.className='bg-project-hint';
+          hint.textContent='Nadpisuje zwykłe tło tylko po wyborze projektu';
+          grp.appendChild(projectLbl);
+          grp.appendChild(projectCtrl);
+          grp.appendChild(hint);
+        }
       }
       pluginOptionsEl.appendChild(grp);
     });
+    refreshProjectBackgroundOptions();
   }
 
   function getOptions(){
@@ -719,6 +1061,10 @@
         opts[s.dataset.key]=s.value;
       }
     });
+    if(opts._project_background){
+      opts.background=opts._project_background;
+    }
+    delete opts._project_background;
     return opts;
   }
 
@@ -731,6 +1077,10 @@
     const el=document.getElementById('opt-'+key);
     if(!el) return;
     el.value=val;
+    if(key==='background'){
+      const projectEl=document.getElementById('opt-background-project');
+      if(projectEl) projectEl.value=(typeof val==='string' && val.startsWith('project:')) ? val : '';
+    }
     if(el.type==='range'){
       const span=el.parentElement.querySelector('span');
       if(span) span.textContent=val;
@@ -952,7 +1302,7 @@
     }
     // dopnij aktywny projekt obrazu, by warstwa miała gdzie się zapisać
     if(!activeImageKey && baseInputFile){
-      activeImageKey=baseInputFile.name+':'+baseInputFile.size+':'+baseInputFile.lastModified;
+      activeImageKey=_ensureProjectForFile(baseInputFile);
     }
     _syncToProject();
     setStatus('Renderuję efekt z edytora jako warstwę...','orange');
@@ -987,8 +1337,8 @@
   dropZone.addEventListener('dragover',e=>{e.preventDefault();dropZone.classList.add('drag-over')});
   dropZone.addEventListener('dragleave',()=>dropZone.classList.remove('drag-over'));
   dropZone.addEventListener('drop',e=>{e.preventDefault();dropZone.classList.remove('drag-over');addFiles([...e.dataTransfer.files])});
-  dropZone.addEventListener('click',()=>fileInput.click());
-  btnPickImage.addEventListener('click',()=>fileInput.click());
+  dropZone.addEventListener('click',()=>{forceNewProjectOnNextAdd=false;fileInput.click();});
+  btnPickImage.addEventListener('click',()=>{forceNewProjectOnNextAdd=false;fileInput.click();});
   window.addEventListener('dragover',e=>{
     if(!activePlugin) return;
     const meta=plugins[activePlugin]||{};
@@ -1005,13 +1355,23 @@
   function addFiles(files){
     const valid=files.filter(f=>ALLOWED.has(f.type)||/\.(jpe?g|png|bmp|gif|tiff?|webp)$/i.test(f.name));
     if(!valid.length)return;
-    if(!baseInputFile) baseInputFile=valid[0];
-    if(!activeImageKey && valid[0]) activeImageKey=valid[0].name+':'+valid[0].size+':'+valid[0].lastModified;
+    const forceNew=forceNewProjectOnNextAdd;
+    forceNewProjectOnNextAdd=false;
     valid.forEach(f=>{
-      const item={file:f,status:'pending',rowEl:null};
+      const key=_ensureProjectForFile(f,forceNew);
+      activeImageKey=key;
+      localStorage.setItem(ACTIVE_PROJECT_KEY,key);
+      baseInputFile=f;
+      _syncFromProject();
+      const item={file:f,status:'done',rowEl:null};
       item.rowEl=createRow(item);queue.push(item);fileList.appendChild(item.rowEl);
+      updateRow(item,'📁','projekt','done');
     });
-    updateProgress();startProcessing();
+    renderProjectList();
+    refreshFocusView();
+    renderLayersList();
+    updateProgress();
+    setStatus(`Dodano ${valid.length} projekt${valid.length===1?'':'y'}. Wybierz efekt i kliknij Add, żeby utworzyć warstwę.`,'green');
   }
 
   function createRow(item){
@@ -1076,7 +1436,7 @@
     if(!disableScaling){
       fd.append('target_size',targetSizeEl.value||'original');
     }
-    const opts=getOptions();
+    const opts=await resolveProjectBackdrops(getOptions());
     Object.entries(opts).forEach(([k,v])=>fd.append('opt_'+k,v));
     
     const fetchOpts={method:'POST',body:fd};
@@ -1124,10 +1484,19 @@
 
     const b64preview=b64.slice(0,120)+'…';
     const card=document.createElement('div');card.className='preview-card';
-    const imageKey=origFile.name+':'+origFile.size+':'+origFile.lastModified;
+    const imageKey=_ensureProjectForFile(origFile);
+    const project=_projectForKey(imageKey);
+    if(project){
+      project.lastOutputBlob=resultBlob;
+      project.lastOutputName=filename;
+      project.lastOutputExt=(filename.split('.').pop()||'png').toLowerCase();
+      project.lastOutputAnimated=project.lastOutputExt==='gif';
+    }
     card.dataset.imageKey=imageKey;
     // Przechowuj blob URL w atrybucie karty
     card.dataset.blobUrl = URL.createObjectURL(resultBlob);
+    if(project) project.thumbUrl=card.dataset.blobUrl;
+    persistProject(imageKey);
     card.innerHTML=`
       <div class="card-title">📄 ${filename}</div>
       <div class="preview-thumbs">
@@ -1225,6 +1594,23 @@
           resultThumb.querySelector('img').src = newBlobUrl;
           // Aktualizuj blob URL w atrybucie karty!
           card.dataset.blobUrl = newBlobUrl;
+          const project=_projectForKey(imageKey);
+          if(project){
+            project.lastOutputBlob=result.blob;
+            project.lastOutputName=result.name;
+            project.lastOutputExt=(result.name.split('.').pop()||'png').toLowerCase();
+            project.lastOutputAnimated=project.lastOutputExt==='gif';
+            project.thumbUrl=newBlobUrl;
+            persistProject(imageKey);
+          }
+          if(activeImageKey===imageKey){
+            lastOutputBlob=result.blob;
+            lastOutputName=result.name;
+            lastOutputExt=(result.name.split('.').pop()||'png').toLowerCase();
+            lastOutputAnimated=lastOutputExt==='gif';
+            refreshFocusView();
+          }
+          renderProjectList();
           const b64Block = card.querySelector('.b64-block');
           b64Block.textContent = result.b64.slice(0,120)+'…';
           // Aktualizuj download button filename
@@ -1246,13 +1632,19 @@
       });
     }
     previewStrip.prepend(card);
-    card.addEventListener('click',()=>{
-      activeImageKey=imageKey;
+    if(activeImageKey===imageKey){
       baseInputFile=origFile;
-      _syncFromProject();
-      renderLayersList();
+      lastOutputBlob=resultBlob;
+      lastOutputName=filename;
+      lastOutputExt=(filename.split('.').pop()||'png').toLowerCase();
+      lastOutputAnimated=lastOutputExt==='gif';
+      _syncToProject();
       refreshFocusView();
-      setStatus(`Aktywny obraz: ${origFile.name}`,'green');
+    }else{
+      renderProjectList();
+    }
+    card.addEventListener('click',()=>{
+      switchProject(imageKey);
     });
   }
 
@@ -1260,12 +1652,33 @@
     if(processing)return;
     queue=[];fileList.innerHTML='';previewStrip.innerHTML='';
     b64Store.clear();
+    imageProjects.clear();
+    clearPersistentProjects();
+    activeImageKey=null;
     baseInputFile=null;lastOutputBlob=null;layers=[];currentLayerEffect=null;selectedLayerIndex=-1;renderLayersList();
     lastOutputExt='png';lastOutputAnimated=false;
     btnLayerAdd.textContent='➕ Add';
+    renderProjectList();
     refreshFocusView();
     fillEl.style.width='0%';textEl.textContent='';
     setStatus('Gotowy — przeciągnij zdjęcia aby rozpocząć');
+  });
+
+  btnNewProject.addEventListener('click',()=>{
+    if(processing||layerRun.running){setStatus('Poczekaj na zakończenie bieżącej operacji.','orange');return;}
+    forceNewProjectOnNextAdd=true;
+    activeImageKey=null;
+    baseInputFile=null;lastOutputBlob=null;lastOutputName='result.png';lastOutputExt='png';lastOutputAnimated=false;
+    layers=[];currentLayerEffect=null;selectedLayerIndex=-1;
+    btnLayerAdd.textContent='➕ Add';
+    renderLayersList();
+    renderProjectList();
+    refreshFocusView();
+    fileInput.click();
+  });
+  btnShowArchived.addEventListener('click',()=>{
+    showArchivedProjects=!showArchivedProjects;
+    renderProjectList();
   });
 
   btnLayerReset.addEventListener('click',()=>{
@@ -1414,7 +1827,10 @@
     console.error('[init] Inpaint button NOT found!');
   }
 
-  loadPlugins();
+  loadPlugins().then(restoreProjects).catch(err=>{
+    console.error('[init] failed',err);
+    setStatus('Błąd inicjalizacji UI: '+(err.message||err),'red');
+  });
 })();
 </script>
 </body>

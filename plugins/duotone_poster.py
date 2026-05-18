@@ -266,7 +266,9 @@ def process(image_bytes: bytes, options: dict) -> bytes:
     fg_duotone = Image.fromarray(dt_rgba, "RGBA")
 
     # Przygotuj tło
-    if background == "dark_color":
+    if isinstance(background, str) and background.startswith("data:image"):
+        bg = prepare_background(img_original.size, background, img_original, alpha_mask_img)
+    elif background == "dark_color":
         bg = Image.new("RGB", (W, H), color_shadow)
     elif background == "black":
         bg = Image.new("RGB", (W, H), (0, 0, 0))

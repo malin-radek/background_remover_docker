@@ -2,9 +2,10 @@
 Wspólne narzędzia dla pluginów - przygotowanie tła, compositing, itp.
 """
 
-from PIL import Image, ImageFilter
+from PIL import Image, ImageFilter, ImageOps
 import numpy as np
 import io
+import base64
 
 
 def _inpaint_mask(img_array: np.ndarray, mask: np.ndarray) -> np.ndarray:
@@ -62,7 +63,14 @@ def prepare_background(size: tuple, background_type: str = "original",
         Image.Image: Tło w formacie RGB (czyszczony od obiektu jeśli mask dostarczony)
     """
     # Przygotuj podstawowe tło
-    if background_type == "original":
+    if isinstance(background_type, str) and background_type.startswith("data:image"):
+        try:
+            _, b64 = background_type.split(",", 1)
+            bg_img = Image.open(io.BytesIO(base64.b64decode(b64))).convert("RGB")
+            bg = ImageOps.fit(bg_img, size, method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
+        except Exception as e:
+            raise ValueError(f"Nie udało się wczytać tła z projektu: {e}") from e
+    elif background_type == "original":
         if original_image is None:
             raise ValueError("original_image wymagane dla background_type='original'")
         bg = original_image.copy()
