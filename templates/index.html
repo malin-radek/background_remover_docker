@@ -2020,7 +2020,10 @@
 
   // Generowanie miniatur
   async function generateVariantStrip(){
-    if(variantStripGenerating) return;
+    // Zawsze anuluj poprzednie generowanie (nawet jeśli trwa)
+    if(variantStripAbortController) variantStripAbortController.abort();
+    variantStripAbortController=new AbortController();
+    variantStripGenerating=false; // Reset flagi po abort
     
     // Wyczyść stan na początku
     variantStripRow.innerHTML='';
@@ -2054,10 +2057,6 @@
     
     const dividerKey=variantDividerSelect.value;
     if(!dividerKey) return;
-    
-    // Anuluj poprzednie generowanie
-    if(variantStripAbortController) variantStripAbortController.abort();
-    variantStripAbortController=new AbortController();
     
     variantStripGenerating=true;
     variantStripEl.classList.add('visible');
