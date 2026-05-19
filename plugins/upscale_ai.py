@@ -58,11 +58,16 @@ METADATA = {
 import io
 import os
 import math
+import warnings
 import urllib.request
 import threading
 import torch
 import numpy as np
 from PIL import Image, ImageFilter
+
+# Suppress deprecation warnings from timm and mobile_sam registry conflicts
+warnings.filterwarnings("ignore", category=FutureWarning, module="timm")
+warnings.filterwarnings("ignore", category=UserWarning, module="mobile_sam")
 
 try:
     from spandrel import ModelLoader

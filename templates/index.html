@@ -162,6 +162,18 @@
   #focus-duo{display:none;grid-template-columns:1fr 1fr;gap:10px}
   .focus-col{display:flex;flex-direction:column;gap:6px}
   .focus-col span{font-size:.72rem;color:var(--muted);font-weight:700}
+  #variant-strip{margin-top:10px;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px;display:none}
+  #variant-strip.visible{display:block}
+  .variant-strip-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px}
+  .variant-strip-title{font-size:.75rem;font-weight:700;color:var(--muted)}
+  .variant-strip-divider{font-size:.65rem;color:var(--green)}
+  #variant-strip-row{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;align-items:flex-start}
+  .variant-thumb{flex:0 0 auto;width:240px;cursor:pointer;border:2px solid transparent;border-radius:4px;overflow:hidden;background:#1a1a1a;transition:border-color .15s,transform .15s}
+  .variant-thumb:hover{border-color:var(--green);transform:scale(1.05)}
+  .variant-thumb.active{border-color:var(--green);box-shadow:0 0 8px rgba(0,255,0,.3)}
+  .variant-thumb img{width:100%;height:160px;object-fit:cover;display:block}
+  .variant-thumb-label{font-size:.7rem;text-align:center;padding:4px;background:#222;color:var(--muted);font-weight:700}
+  .variant-thumb-loading{width:240px;height:160px;display:flex;align-items:center;justify-content:center;background:#1a1a1a;border-radius:4px;color:var(--muted);font-size:.8rem}
 </style>
 </head>
 <body>
@@ -196,6 +208,18 @@
   <!-- Plugin options (dynamiczne) -->
   <div id="plugin-options"></div>
 
+  <!-- Variant strip: Warianty parametru -->
+  <div id="variant-strip">
+    <div class="variant-strip-header">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="variant-strip-title">Warianty:</span>
+        <select id="variant-divider-select" style="background:#333;color:#fff;border:1px solid var(--border);border-radius:4px;padding:4px 8px;font-size:.75rem;min-width:150px"></select>
+      </div>
+      <span class="variant-strip-divider">Kliknij miniaturkę aby zastosować</span>
+    </div>
+    <div id="variant-strip-row" class="variant-strip-row"></div>
+  </div>
+
   <!-- Image scaling selector (shown/hidden based on plugin) -->
   <div id="scaling-section" style="display:flex;flex-direction:column;gap:8px">
     <div class="section-label">📏 Rozmiar docelowy:</div>
@@ -226,6 +250,10 @@
   <!-- Separate file input ONLY for inpainting (hidden) -->
   <input type="file" id="inpaint-file-input" style="display: none;" accept=".jpg,.jpeg,.png,.bmp,.gif,.tiff,.webp">
 
+  <!-- Background file inputs for remove_bg_movie plugin -->
+  <input type="file" id="bg-static-image-input" style="display: none;" accept=".jpg,.jpeg,.png,.bmp,.gif,.tiff,.webp">
+  <input type="file" id="bg-movie-input" style="display: none;" accept=".mp4,.mov,.avi,.mkv,.webm">
+
   <button id="btn-pick-image">📂 Wybierz zdjęcia</button>
 
   <!-- Drop zone (hidden by default, shown on drag) -->
@@ -249,7 +277,8 @@
   </div>
   <div id="layers-panel">
     <div id="layers-toolbar">
-      <button id="btn-layer-add">➕ Add</button>
+      <button id="btn-layer-add">➕ Dodaj warstwę</button>
+      <button id="btn-layer-regenerate"> Regeneruj</button>
       <button id="btn-layer-stop">⏹ STOP</button>
       <button id="btn-layer-reset">♻️ Reset</button>
       <button id="btn-layer-save">💾 Zapisz</button>
@@ -354,8 +383,10 @@
         projectsList=document.getElementById('projects-list'),
         activeProjectTitle=document.getElementById('active-project-title'),
         activeProjectMeta=document.getElementById('active-project-meta'),
-        btnNewProject=document.getElementById('btn-new-project'),
-        btnShowArchived=document.getElementById('btn-show-archived');
+         btnNewProject=document.getElementById('btn-new-project'),
+         btnShowArchived=document.getElementById('btn-show-archived'),
+         bgStaticImageInput=document.getElementById('bg-static-image-input'),
+         bgMovieInput=document.getElementById('bg-movie-input');
   const btnPickImage=document.getElementById('btn-pick-image');
   const textEditorOpenBtn=document.getElementById('text-editor-open'),
         teOverlay=document.getElementById('text-editor-overlay'),
@@ -386,6 +417,7 @@
         teClose=document.getElementById('te-close'),
         teResize=document.getElementById('te-resize');
   const btnLayerAdd=document.getElementById('btn-layer-add'),
+        btnLayerRegenerate=document.getElementById('btn-layer-regenerate'),
         btnLayerStop=document.getElementById('btn-layer-stop'),
         btnLayerReset=document.getElementById('btn-layer-reset'),
         btnLayerSave=document.getElementById('btn-layer-save'),
@@ -404,6 +436,8 @@
   let teCurrentFile=null, teRenderTimer=null, teRenderToken=0;
 
   const ALLOWED=new Set(['image/jpeg','image/png','image/bmp','image/gif','image/tiff','image/webp']);
+  const VIDEO_ALLOWED=new Set(['video/mp4','video/quicktime','video/x-msvideo','video/x-matroska','video/webm']);
+  const VIDEO_EXT_RE=/\.(mp4|mov|avi|mkv|webm)$/i;
   const THANKS_INTERVAL=5;
   const ACTIONS=[
     "zrobić Radkowi herbatkę ☕",
@@ -431,6 +465,7 @@
   let projectCounter=0;
   let forceNewProjectOnNextAdd=false,showArchivedProjects=false,forcedProjectCounter=0;
   const LAYER_PRESETS_KEY='layer_presets_v1';
+  let bgStaticImageData=null, bgMovieData=null;
 
   // ── Przechowywanie b64 poza DOM ───────────────────────────────────────────
   const b64Store=new Map(); // cardId -> base64 string
@@ -638,9 +673,9 @@
     baseInputFile=p.origFile||baseInputFile;
     layers=p.layers; currentLayerEffect=p.currentLayerEffect; selectedLayerIndex=p.selectedLayerIndex;
     lastOutputBlob=p.lastOutputBlob; lastOutputName=p.lastOutputName; lastOutputExt=p.lastOutputExt; lastOutputAnimated=p.lastOutputAnimated;
-    btnLayerAdd.textContent=(selectedLayerIndex>=0 || currentLayerEffect===activePlugin)?'🔄 Regeneruj':'➕ Add';
     renderProjectList();
     refreshProjectBackgroundOptions();
+    if(typeof scheduleVariantStripRefresh==='function') scheduleVariantStripRefresh();
   }
   function _syncToProject(){
     const p=_projectForKey(activeImageKey);
@@ -787,6 +822,12 @@
     document.querySelectorAll('.plugin-card').forEach(c=>c.classList.toggle('active',c.dataset.id===id));
     const meta=plugins[id];
     renderPluginOptions(meta);
+    // Update file input accept based on plugin metadata
+    if(meta && meta.accept){
+      fileInput.setAttribute('accept', meta.accept);
+    } else {
+      fileInput.setAttribute('accept', '.jpg,.jpeg,.png,.bmp,.gif,.tiff,.webp');
+    }
     const isTextOnImage=id==='text_on_image';
     pluginOptionsEl.style.display=isTextOnImage?'none':'flex';
     // Pokaż/ukryj scaling section na podstawie disable_scaling
@@ -810,7 +851,6 @@
     }
     if(prev!==id){
       currentLayerEffect=null;
-      btnLayerAdd.textContent=(selectedLayerIndex>=0)?'🔄 Regeneruj':'➕ Add';
     }
   }
 
@@ -848,7 +888,6 @@
         layers.splice(to,0,moved);
         currentLayerEffect=null;
         _syncToProject();
-        btnLayerAdd.textContent='➕ Add';
         renderLayersList();
         await rebuildLayers();
       });
@@ -860,6 +899,8 @@
         layers.splice(idx,1);
         if(selectedLayerIndex===idx) selectedLayerIndex=-1;
         else if(selectedLayerIndex>idx) selectedLayerIndex-=1;
+        // Reset GIF state when layers change
+        lastOutputAnimated=false;
         _syncToProject();
         if(!layerRun.running) await rebuildLayers();
         renderLayersList();
@@ -948,6 +989,11 @@
       lastOutputAnimated=lastOutputExt==='gif';
       _syncToProject();
       addPreview(baseInputFile,final.blob,final.b64,final.name);
+      if(typeof scheduleVariantStripRefresh==='function') scheduleVariantStripRefresh();
+    }else{
+      // No output - reset GIF state
+      lastOutputAnimated=false;
+      _syncToProject();
     }
     layerRun.running=false; layerRun.index=-1; layerRun.controller=null;
     renderLayersList();
@@ -1050,6 +1096,56 @@
       pluginOptionsEl.appendChild(grp);
     });
     refreshProjectBackgroundOptions();
+    setupBgFilePickers();
+  }
+
+  function setupBgFilePickers(){
+    const bgSelect=pluginOptionsEl.querySelector('select[data-key="background"]');
+    if(!bgSelect) return;
+    
+    ['static_image','movie'].forEach(type=>{
+      let row=pluginOptionsEl.querySelector(`.bg-file-row[data-bg-type="${type}"]`);
+      if(!row){
+        row=document.createElement('div');
+        row.className='ctrl-group bg-file-row';
+        row.dataset.bgType=type;
+        const lbl=document.createElement('label');
+        lbl.textContent=type==='static_image'?'Obraz tła:':'Wideo tła:';
+        const btn=document.createElement('button');
+        btn.type='button';
+        btn.textContent='📂 Wybierz plik';
+        btn.style.cssText='background:#333;color:var(--white);border:1px solid var(--border);border-radius:3px;padding:4px 8px;font-family:inherit;font-size:.8rem;cursor:pointer';
+        const fileName=document.createElement('span');
+        fileName.className='bg-file-name';
+        fileName.style.cssText='font-size:.7rem;color:var(--muted);margin-left:8px';
+        fileName.textContent='Nie wybrano';
+        row.appendChild(lbl);
+        row.appendChild(btn);
+        row.appendChild(fileName);
+        pluginOptionsEl.appendChild(row);
+        
+        const input=type==='static_image' ? bgStaticImageInput : bgMovieInput;
+        btn.addEventListener('click',()=>input.click());
+        input.addEventListener('change',async function(){
+          if(!this.files||!this.files[0]) return;
+          const file=this.files[0];
+          fileName.textContent=file.name;
+          const reader=new FileReader();
+          reader.onload=()=>{
+            if(type==='static_image') bgStaticImageData=reader.result;
+            else bgMovieData=reader.result;
+          };
+          reader.readAsDataURL(file);
+        });
+      }
+      row.style.display=bgSelect.value===type?'flex':'none';
+    });
+    
+    bgSelect.addEventListener('change',()=>{
+      pluginOptionsEl.querySelectorAll('.bg-file-row').forEach(r=>{
+        r.style.display=bgSelect.value===r.dataset.bgType?'flex':'none';
+      });
+    });
   }
 
   function getOptions(){
@@ -1065,6 +1161,14 @@
       opts.background=opts._project_background;
     }
     delete opts._project_background;
+    
+    // Add background file data if applicable
+    if(opts.background==='static_image' && bgStaticImageData){
+      opts.static_image=bgStaticImageData;
+    }
+    if(opts.background==='movie' && bgMovieData){
+      opts.movie_background=bgMovieData;
+    }
     return opts;
   }
 
@@ -1294,7 +1398,6 @@
     if(!isRegenerateCurrent){
       layers.push({plugin:activePlugin,options:{...opts},enabled:true});
       currentLayerEffect=activePlugin;
-      btnLayerAdd.textContent='🔄 Regeneruj';
       renderLayersList();
     }else{
       const i=layers.map((x,ii)=>x.plugin===activePlugin?ii:-1).filter(ii=>ii>=0).pop();
@@ -1353,7 +1456,8 @@
   fileInput.addEventListener('change',()=>{addFiles([...fileInput.files]);fileInput.value=''});
 
   function addFiles(files){
-    const valid=files.filter(f=>ALLOWED.has(f.type)||/\.(jpe?g|png|bmp|gif|tiff?|webp)$/i.test(f.name));
+    const isVideoPlugin=activePlugin && plugins[activePlugin] && plugins[activePlugin].accept && plugins[activePlugin].accept.includes('video');
+    const valid=files.filter(f=>ALLOWED.has(f.type)||VIDEO_ALLOWED.has(f.type)||/\.(jpe?g|png|bmp|gif|tiff?|webp)$/i.test(f.name)||(isVideoPlugin && VIDEO_EXT_RE.test(f.name)));
     if(!valid.length)return;
     const forceNew=forceNewProjectOnNextAdd;
     forceNewProjectOnNextAdd=false;
@@ -1363,6 +1467,7 @@
       localStorage.setItem(ACTIVE_PROJECT_KEY,key);
       baseInputFile=f;
       _syncFromProject();
+      if(typeof scheduleVariantStripRefresh==='function') scheduleVariantStripRefresh();
       const item={file:f,status:'done',rowEl:null};
       item.rowEl=createRow(item);queue.push(item);fileList.appendChild(item.rowEl);
       updateRow(item,'📁','projekt','done');
@@ -1609,6 +1714,7 @@
             lastOutputExt=(result.name.split('.').pop()||'png').toLowerCase();
             lastOutputAnimated=lastOutputExt==='gif';
             refreshFocusView();
+            if(typeof scheduleVariantStripRefresh==='function') scheduleVariantStripRefresh();
           }
           renderProjectList();
           const b64Block = card.querySelector('.b64-block');
@@ -1640,6 +1746,7 @@
       lastOutputAnimated=lastOutputExt==='gif';
       _syncToProject();
       refreshFocusView();
+      if(typeof scheduleVariantStripRefresh==='function') scheduleVariantStripRefresh();
     }else{
       renderProjectList();
     }
@@ -1657,10 +1764,12 @@
     activeImageKey=null;
     baseInputFile=null;lastOutputBlob=null;layers=[];currentLayerEffect=null;selectedLayerIndex=-1;renderLayersList();
     lastOutputExt='png';lastOutputAnimated=false;
-    btnLayerAdd.textContent='➕ Add';
     renderProjectList();
     refreshFocusView();
     fillEl.style.width='0%';textEl.textContent='';
+    bgStaticImageData=null;bgMovieData=null;
+    if(bgStaticImageInput) bgStaticImageInput.value='';
+    if(bgMovieInput) bgMovieInput.value='';
     setStatus('Gotowy — przeciągnij zdjęcia aby rozpocząć');
   });
 
@@ -1670,7 +1779,6 @@
     activeImageKey=null;
     baseInputFile=null;lastOutputBlob=null;lastOutputName='result.png';lastOutputExt='png';lastOutputAnimated=false;
     layers=[];currentLayerEffect=null;selectedLayerIndex=-1;
-    btnLayerAdd.textContent='➕ Add';
     renderLayersList();
     renderProjectList();
     refreshFocusView();
@@ -1686,45 +1794,53 @@
     layers=[];currentLayerEffect=null;lastOutputBlob=null;selectedLayerIndex=-1;
     _syncToProject();
     lastOutputExt='png';lastOutputAnimated=false;
-    btnLayerAdd.textContent='➕ Add';
     renderLayersList();
     refreshFocusView();
     setStatus('Zresetowano warstwy. Start od oryginału.','green');
   });
 
+  // Przycisk Dodaj warstwę - ZAWSZE dodaje nową warstwę
   btnLayerAdd.addEventListener('click',async()=>{
     _syncFromProject();
     if(processing) return;
     if(layerRun.running) return;
     const src=lastOutputBlob?makeFileFromBlob(lastOutputBlob,lastOutputName):(baseInputFile||(queue[0]&&queue[0].file));
     if(!src){ setStatus('Najpierw dodaj obraz.','orange'); return; }
-    const opts=getOptions();
-    const isEditingSelected=(selectedLayerIndex>=0 && layers[selectedLayerIndex]);
-    const isRegenerateCurrent=(currentLayerEffect===activePlugin) || isEditingSelected;
-    if(lastOutputAnimated && !isRegenerateCurrent){
-      setStatus('Wynik to GIF: nie dodasz nowej warstwy, ale możesz użyć Regeneruj dla bieżącej.','orange');
+    if(lastOutputAnimated){
+      setStatus('Wynik to GIF: nie można dodać nowej warstwy.','orange');
       return;
     }
-    if(isEditingSelected){
-      layers[selectedLayerIndex].plugin=activePlugin;
-      layers[selectedLayerIndex].options={...opts};
-      currentLayerEffect=activePlugin;
-      _syncToProject();
-      btnLayerAdd.textContent='🔄 Regeneruj';
-      renderLayersList();
-    } else if(!isRegenerateCurrent){
-      layers.push({plugin:activePlugin,options:{...opts},enabled:true});
-      currentLayerEffect=activePlugin;
-      _syncToProject();
-      btnLayerAdd.textContent='🔄 Regeneruj';
-      renderLayersList();
-    }else{
-      const i=layers.map((x,ii)=>x.plugin===activePlugin?ii:-1).filter(ii=>ii>=0).pop();
-      if(i>=0) layers[i].options={...opts};
-      _syncToProject();
-    }
+    const opts=getOptions();
+    layers.push({plugin:activePlugin,options:{...opts},enabled:true});
+    currentLayerEffect=activePlugin;
+    selectedLayerIndex=-1;
+    _syncToProject();
+    renderLayersList();
     await rebuildLayers();
+    setStatus(`Dodano warstwę: ${plugins[activePlugin]?.name||activePlugin}`,'green');
   });
+
+  // Przycisk Regeneruj - przelicza WSZYSTKIE warstwy od nowa
+  if(btnLayerRegenerate){
+    btnLayerRegenerate.addEventListener('click',async()=>{
+      _syncFromProject();
+      if(processing) return;
+      if(layerRun.running) return;
+      if(!layers.length){ setStatus('Brak warstw do regeneracji.','orange'); return; }
+      const src=lastOutputBlob?makeFileFromBlob(lastOutputBlob,lastOutputName):(baseInputFile||(queue[0]&&queue[0].file));
+      if(!src){ setStatus('Najpierw dodaj obraz.','orange'); return; }
+      if(lastOutputAnimated){
+        setStatus('Wynik to GIF: nie można regenerować.','orange');
+        return;
+      }
+      currentLayerEffect=null;
+      selectedLayerIndex=-1;
+      _syncToProject();
+      renderLayersList();
+      await rebuildLayers();
+      setStatus('Regeneracja wszystkich warstw zakończona.','green');
+    });
+  }
   btnLayerStop.addEventListener('click',()=>{
     if(layerRun.running && layerRun.controller){
       layerRun.cancelled=true;
@@ -1755,7 +1871,6 @@
     currentLayerEffect=null;
     selectedLayerIndex=-1;
     _syncToProject();
-    btnLayerAdd.textContent='🔄 Regeneruj';
     renderLayersList();
     await rebuildLayers();
     setStatus(`Zastosowano preset: ${name}`,'green');
@@ -1826,6 +1941,218 @@
   } else {
     console.error('[init] Inpaint button NOT found!');
   }
+
+  // ─ VARIANT STRIP: Miniaturki z różnymi wartościami parametru ──────────────
+  const variantStripEl=document.getElementById('variant-strip');
+  const variantDividerSelect=document.getElementById('variant-divider-select');
+  const variantStripRow=document.getElementById('variant-strip-row');
+  let variantStripGenerating=false;
+  let variantStripAbortController=null;
+
+  // Znajdź wszystkie potencjalne dividery (slidery i selecty z >=3 opcjami)
+  function findDividerParams(pluginMeta){
+    if(!pluginMeta || !pluginMeta.options) return [];
+    const opts=pluginMeta.options;
+    const dividers=[];
+    
+    // Dodaj wszystkie slidery
+    Object.entries(opts).forEach(([k,v])=>{
+      if(v.type==='slider') dividers.push({key:k, label:v.label||k, type:'slider'});
+    });
+    
+    // Dodaj wszystkie selecty z >=3 opcjami
+    Object.entries(opts).forEach(([k,v])=>{
+      if(v.type==='select' && Object.keys(v.choices||{}).length>=3){
+        dividers.push({key:k, label:v.label||k, type:'select'});
+      }
+    });
+    
+    return dividers;
+  }
+
+  // Wybierz domyślny divider (priorytety)
+  function pickDefaultDivider(dividers, pluginMeta){
+    if(!dividers.length) return null;
+    
+    // Priorytet 1: divider_param z metadanych
+    if(pluginMeta.divider_param){
+      const found=dividers.find(d=>d.key===pluginMeta.divider_param);
+      if(found) return found;
+    }
+    
+    // Priorytet 2: intensity
+    const intensity=dividers.find(d=>d.key.toLowerCase().includes('intensity'));
+    if(intensity) return intensity;
+    
+    // Priorytet 3: pierwszy slider
+    const slider=dividers.find(d=>d.type==='slider');
+    if(slider) return slider;
+    
+    // Priorytet 4: pierwszy select
+    return dividers[0];
+  }
+
+  // Generowanie wartości dla dzielnika
+  function generateDividerValues(pluginMeta, dividerKey, currentOpts){
+    const opt=pluginMeta.options[dividerKey];
+    if(!opt) return [];
+    
+    if(opt.type==='slider'){
+      const min=opt.min||0, max=opt.max||100, step=opt.step||1;
+      const current=parseFloat(currentOpts[dividerKey]||opt.default||50);
+      const range=(max-min)/4;
+      return [
+        Math.max(min, Math.min(max, current-2*range)),
+        Math.max(min, Math.min(max, current-range)),
+        current,
+        Math.max(min, Math.min(max, current+range)),
+        Math.max(min, Math.min(max, current+2*range))
+      ].map(v=>Math.round(v/step)*step);
+    }
+    
+    if(opt.type==='select'){
+      // Dla enumów: zwróć WSZYSTKIE opcje
+      return Object.keys(opt.choices||{});
+    }
+    
+    return [];
+  }
+
+  // Generowanie miniatur
+  async function generateVariantStrip(){
+    if(variantStripGenerating) return;
+    
+    // Wyczyść stan na początku
+    variantStripRow.innerHTML='';
+    variantStripEl.classList.remove('visible');
+    
+    if(!baseInputFile && !lastOutputBlob) return;
+    
+    const pluginMeta=plugins[activePlugin];
+    if(!pluginMeta) return;
+    
+    const dividers=findDividerParams(pluginMeta);
+    if(!dividers.length) return;
+    
+    // Aktualizuj select dividerów
+    const currentDividerKey=variantDividerSelect.value;
+    variantDividerSelect.innerHTML='';
+    dividers.forEach(d=>{
+      const o=document.createElement('option');
+      o.value=d.key;
+      o.textContent=d.label;
+      variantDividerSelect.appendChild(o);
+    });
+    
+    // Ustaw aktualny divider
+    const defaultDivider=pickDefaultDivider(dividers, pluginMeta);
+    if(currentDividerKey && dividers.find(d=>d.key===currentDividerKey)){
+      variantDividerSelect.value=currentDividerKey;
+    }else if(defaultDivider){
+      variantDividerSelect.value=defaultDivider.key;
+    }
+    
+    const dividerKey=variantDividerSelect.value;
+    if(!dividerKey) return;
+    
+    // Anuluj poprzednie generowanie
+    if(variantStripAbortController) variantStripAbortController.abort();
+    variantStripAbortController=new AbortController();
+    
+    variantStripGenerating=true;
+    variantStripEl.classList.add('visible');
+    variantStripRow.innerHTML='<div class="variant-thumb-loading">Generowanie...</div>';
+    
+    const currentOpts=getOptions();
+    const values=generateDividerValues(pluginMeta, dividerKey, currentOpts);
+    const dividerOpt=pluginMeta.options[dividerKey];
+    
+    try{
+      const src=lastOutputBlob?makeFileFromBlob(lastOutputBlob,lastOutputName):baseInputFile;
+      
+      // Wyczyść wiersz - miniaturki będą dodawane na bieżąco
+      variantStripRow.innerHTML='';
+      
+      for(const val of values){
+        if(variantStripAbortController.signal.aborted) break;
+        
+        // Użyj WSZYSTKICH obecnych opcji, tylko zmień dzielnik
+        const opts={...currentOpts, [dividerKey]:val};
+        const resolvedOpts=await resolveProjectBackdrops(opts);
+        
+        const fd=new FormData();
+        fd.append('image', src);
+        fd.append('plugin', activePlugin);
+        fd.append('mode', 'preview');
+        Object.entries(resolvedOpts).forEach(([k,v])=>fd.append('opt_'+k,v));
+        
+        const resp=await fetch('/process',{method:'POST',body:fd,signal:variantStripAbortController.signal});
+        if(!resp.ok) continue;
+        
+        const jsonResp=await resp.json();
+        const blobResp=await fetch(jsonResp.download_url);
+        if(!blobResp.ok) continue;
+        const blob=await blobResp.blob();
+        
+        const label=dividerOpt.type==='slider'?`${val}`:(dividerOpt.choices?.[val]||val);
+        const blobUrl=URL.createObjectURL(blob);
+        
+        // Renderuj miniaturkę OD RAZU po wygenerowaniu
+        const div=document.createElement('div');
+        div.className='variant-thumb'+(String(val)===String(currentOpts[dividerKey])?' active':'');
+        div.innerHTML=`<img src="${blobUrl}" alt="${label}"><div class="variant-thumb-label">${label}</div>`;
+        div.addEventListener('click',()=>{
+          setCtrlValue(dividerKey, val);
+          variantStripRow.querySelectorAll('.variant-thumb').forEach(t=>t.classList.remove('active'));
+          div.classList.add('active');
+          setStatus(`Zastosowano: ${dividerOpt.label||dividerKey} = ${label}`,'green');
+        });
+        variantStripRow.appendChild(div);
+      }
+      
+    }catch(err){
+      if(err.name!=='AbortError'){
+        console.error('[variant-strip] Error:',err);
+        variantStripRow.innerHTML='<div class="variant-thumb-loading">Błąd generowania</div>';
+      }
+    }finally{
+      variantStripGenerating=false;
+    }
+  }
+
+  // Obsługa zmiany dividera z selecta
+  variantDividerSelect.addEventListener('change', ()=>{
+    generateVariantStrip();
+  });
+
+  // Debounce dla odświeżania miniatur
+  let variantStripDebounce=null;
+  function scheduleVariantStripRefresh(){
+    if(variantStripDebounce) clearTimeout(variantStripDebounce);
+    variantStripDebounce=setTimeout(()=>generateVariantStrip(), 800);
+  }
+
+  // Nasłuchuj zmian na WSZYSTKICH kontrolkach w pluginOptionsEl
+  pluginOptionsEl.addEventListener('input', e=>{
+    if(e.target.closest('#plugin-options')) scheduleVariantStripRefresh();
+  });
+  pluginOptionsEl.addEventListener('change', e=>{
+    if(e.target.closest('#plugin-options')) scheduleVariantStripRefresh();
+  });
+
+  // Odśwież przy zmianie pluginu
+  const origSelectPlugin=selectPlugin;
+  selectPlugin=function(id){
+    // Zatrzymaj poprzednie generowanie
+    if(variantStripAbortController) variantStripAbortController.abort();
+    // Wyczyść pasek natychmiast
+    variantStripRow.innerHTML='';
+    variantStripEl.classList.remove('visible');
+    // Wywołaj oryginalną funkcję
+    origSelectPlugin(id);
+    // Odśwież natychmiast (bez opóźnienia)
+    generateVariantStrip();
+  };
 
   loadPlugins().then(restoreProjects).catch(err=>{
     console.error('[init] failed',err);

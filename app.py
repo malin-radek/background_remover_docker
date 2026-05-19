@@ -375,11 +375,19 @@ def process():
     plugin_meta = PLUGINS.get(plugin_id, {})
     disable_scaling = plugin_meta.get("disable_scaling", False)
     
-    # Docelowy rozmiar: None jeśli wyłączone skalowanie, inaczej 1024px
-    target_size = None if disable_scaling else 1024
-    
     # Czytaj mode: preview (szybki) vs download (wysoka jakość)
     mode = request.form.get("mode", "download")  # default: download
+    
+    # Docelowy rozmiar: 
+    # - None jeśli wyłączone skalowanie
+    # - 256px dla preview (miniaturki wariantów)
+    # - 1024px dla download (standard)
+    if disable_scaling:
+        target_size = None
+    elif mode == "preview":
+        target_size = 512  # Średni rozmiar dla miniatur wariantów (szybki ale wystarczający dla edge detection)
+    else:
+        target_size = 1024
 
     try:
         t0 = time.time()
