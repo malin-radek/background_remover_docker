@@ -157,22 +157,14 @@ def process(image_bytes: bytes, options: dict) -> bytes:
         b_resized = b.resize((new_w, new_h), Image.LANCZOS)
         a_resized = a_base.resize((new_w, new_h), Image.LANCZOS)
         
-        # Stwórz klatkę z centrowaniem
+        # Stwórz klatkę z centrowaniem — użyj paste zamiast pixel-by-pixel
         frame = Image.new("RGBA", original_size, (0, 0, 0, 0))
         offset_x = (original_size[0] - new_w) // 2
         offset_y = (original_size[1] - new_h) // 2
         
-        # Wklej każdy kanał
-        for y in range(new_h):
-            for x in range(new_w):
-                px_x = offset_x + x
-                px_y = offset_y + y
-                if 0 <= px_x < original_size[0] and 0 <= px_y < original_size[1]:
-                    r_val = r_resized.getpixel((x, y))
-                    g_val = g_resized.getpixel((x, y))
-                    b_val = b_resized.getpixel((x, y))
-                    a_val = a_resized.getpixel((x, y))
-                    frame.putpixel((px_x, px_y), (r_val, g_val, b_val, a_val))
+        # Złóż kanały RGBA i wklej jednym paste()
+        resized_rgba = Image.merge("RGBA", (r_resized, g_resized, b_resized, a_resized))
+        frame.paste(resized_rgba, (offset_x, offset_y))
         
         # Nałóż frame z alpha na tło
         bg_frame = bg.copy()

@@ -167,7 +167,7 @@ def _manga_hero_intelligent(src_rgb: Image.Image, person_mask: Image.Image, fg_s
 
     comps = _largest_components(person_mask, max_people=4)
     if not comps:
-        return Image.composite(base, bg, person_mask)
+        return out
 
     region_patterns = ["line", "cross", "grid"]
     for _, (minx, miny, maxx, maxy), pts in comps:

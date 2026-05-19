@@ -5,10 +5,7 @@ Rozdziela kanały RGB i przesuwa je, tworząc halo i efekt 3D-ish.
 Używany w: motion graphics, cyberpunk aesthetics, VFX, okładki albumów.
 """
 
-try:
-    _AVAILABLE = True
-except ImportError:
-    _AVAILABLE = False
+_AVAILABLE = False  # Set to True after rembg import succeeds
 
 METADATA = {
     "id": "chromatic_aberration",

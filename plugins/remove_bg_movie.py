@@ -64,9 +64,18 @@ import tempfile
 import os
 import numpy as np
 from PIL import Image
-from rembg import remove, new_session
+
+try:
+    from rembg import remove, new_session
+    _AVAILABLE = True
+except ImportError:
+    _AVAILABLE = False
 
 _sessions = {}
+
+
+def is_available() -> bool:
+    return _AVAILABLE
 
 def _get_session(model_name):
     if model_name not in _sessions:

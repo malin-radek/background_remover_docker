@@ -460,8 +460,7 @@ def process(image_bytes: bytes, options: dict) -> bytes:
 
     if glow_color != "original":
         rgb_part = _apply_color_tint(img_removed.convert("RGB"), glow_color)
-        img_removed = Image.new("RGBA", img_removed.size)
-        img_removed.paste(rgb_part, (0, 0))
+        img_removed = rgb_part.convert("RGBA")
         img_removed.putalpha(alpha_mask)
 
     # ── Statyczne ──────────────────────────────────────────────────────────
